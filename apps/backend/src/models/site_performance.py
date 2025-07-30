@@ -31,6 +31,7 @@ class SiteDetails(BaseModel):
                 "capacity_kw": 5000.0,
                 "installation_date": "2023-01-15",
                 "status": "active",
+                "connectivity_status": "connected",
             }
         }
     )
@@ -47,6 +48,9 @@ class SiteDetails(BaseModel):
         None, description="Date when the site was installed"
     )
     status: Optional[str] = Field(None, description="Current status of the site")
+    connectivity_status: Optional[str] = Field(
+        None, description="Current connectivity status (connected/disconnected)"
+    )
 
 
 class SitesListResponse(BaseModel):

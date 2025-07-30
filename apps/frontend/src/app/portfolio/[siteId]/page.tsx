@@ -21,6 +21,15 @@ export default function SiteAnalysisPage() {
   const [showExpected, setShowExpected] = useState(true);
   const [showTrendLine, setShowTrendLine] = useState(true);
 
+  // Fetch site data for connectivity status
+  const { data: sitesData } = useQuery({
+    queryKey: sitesQueryKeys.lists(),
+    queryFn: sitesApi.getSites,
+  });
+
+  // Find current site data
+  const currentSite = sitesData?.sites.find(site => site.site_id === siteId);
+
   // Fetch site performance data
   const { data: performanceData, isLoading, error } = useQuery({
     queryKey: sitesQueryKeys.sitePerformance(siteId),
@@ -60,8 +69,14 @@ export default function SiteAnalysisPage() {
               </Button>
             </Link>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm text-muted-foreground">Active</span>
+              <div className={`w-2 h-2 rounded-full ${
+                currentSite?.connectivity_status === 'connected' 
+                  ? 'bg-green-500' 
+                  : 'bg-red-500'
+              }`}></div>
+              <span className="text-sm text-muted-foreground">
+                {currentSite?.connectivity_status === 'connected' ? 'Connected' : 'Disconnected'}
+              </span>
             </div>
           </div>
           

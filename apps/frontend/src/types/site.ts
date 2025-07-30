@@ -5,6 +5,7 @@ export interface Site {
   capacity_kw?: number;
   installation_date?: string;
   status?: string;
+  connectivity_status?: 'connected' | 'disconnected';
 }
 
 export interface SitesResponse {

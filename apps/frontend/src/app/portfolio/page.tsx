@@ -70,7 +70,7 @@ export default function PortfolioPage() {
             </span>
             <span className="flex items-center gap-1">
               <Zap className="h-4 w-4" />
-              {sites.reduce((total, site) => total + (site.capacity_kw || 0), 0).toLocaleString()} kW Total Capacity
+              {sites.reduce((total, site) => total + (site.capacity_kw || 0), 0).toLocaleString()} MW Total Capacity
             </span>
           </div>
         </div>
@@ -101,7 +101,14 @@ export default function PortfolioPage() {
                     </p>
                   </div>
                   <div className="flex-shrink-0">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <div 
+                      className={`w-2 h-2 rounded-full ${
+                        site.connectivity_status === 'connected' 
+                          ? 'bg-green-500' 
+                          : 'bg-red-500'
+                      }`}
+                      title={site.connectivity_status === 'connected' ? 'Connected' : 'Disconnected'}
+                    ></div>
                   </div>
                 </div>
 
@@ -115,7 +122,7 @@ export default function PortfolioPage() {
                   {site.capacity_kw && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Zap className="h-4 w-4" />
-                      {site.capacity_kw.toLocaleString()} kW
+                      {site.capacity_kw.toLocaleString()} MW
                     </div>
                   )}
                   {site.installation_date && (
