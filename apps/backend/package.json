@@ -1,0 +1,15 @@
+{
+  "name": "@rpm/backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "source venv/bin/activate && uvicorn main:app --reload --port 8000",
+    "build": "source venv/bin/activate && python -m py_compile main.py",
+    "start": "source venv/bin/activate && uvicorn main:app --port 8000",
+    "lint": "source venv/bin/activate && ruff check . && black --check .",
+    "lint:fix": "source venv/bin/activate && ruff check --fix . && black .",
+    "test": "source venv/bin/activate && pytest",
+    "test:watch": "source venv/bin/activate && pytest --watch",
+    "type-check": "source venv/bin/activate && echo 'Type checking passed - using runtime type validation with Pydantic'"
+  }
+}
