@@ -15,5 +15,18 @@ export interface SitesResponse {
 export interface ApiError {
   error: string;
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
+}
+
+export interface PerformanceDataPoint {
+  poa_irradiance: number;
+  actual_power: number;
+  expected_power: number;
+}
+
+export interface SitePerformanceResponse {
+  site_id: string;
+  data_points: PerformanceDataPoint[];
+  rmse: number;
+  r_squared: number;
 }

@@ -9,9 +9,11 @@ const mockGetSites = jest.fn();
 
 // Mock Next.js Link component
 jest.mock("next/link", () => {
-  return ({ children, href }: { children: React.ReactNode; href: string }) => (
+  const MockLink = ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>
   );
+  MockLink.displayName = 'MockLink';
+  return MockLink;
 });
 
 // Remove this line since we're using mockGetSites directly
@@ -39,7 +41,7 @@ describe("PortfolioPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Set up the mock to return getSites function
-    const { sitesApi } = require("@/lib/api/sites");
+    const { sitesApi } = jest.requireMock("@/lib/api/sites") as { sitesApi: { getSites: jest.Mock } };
     sitesApi.getSites = mockGetSites;
   });
 
@@ -110,7 +112,7 @@ describe("PortfolioPage", () => {
       total_count: 0,
     };
 
-    mockSitesApi.getSites.mockResolvedValue(mockEmptyData);
+    mockGetSites.mockResolvedValue(mockEmptyData);
 
     renderWithQueryClient(<PortfolioPage />);
 

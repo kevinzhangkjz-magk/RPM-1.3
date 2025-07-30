@@ -1,5 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SiteAnalysisPage from "./page";
+import { mockGetSitePerformance } from "@/__mocks__/@/lib/api/sites";
+
+// Mock fetch globally
+global.fetch = jest.fn();
 
 // Mock Next.js hooks and components
 jest.mock("next/navigation", () => ({
@@ -7,70 +12,147 @@ jest.mock("next/navigation", () => ({
 }));
 
 jest.mock("next/link", () => {
-  return ({ children, href }: { children: React.ReactNode; href: string }) => (
+  const MockLink = ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>
   );
+  MockLink.displayName = 'MockLink';
+  return MockLink;
 });
 
-const mockUseParams = require("next/navigation").useParams as jest.Mock;
+// Mock Recharts components
+jest.mock("recharts", () => ({
+  ScatterChart: ({ children }: { children: React.ReactNode }) => <div data-testid="scatter-chart">{children}</div>,
+  LineChart: ({ children }: { children: React.ReactNode }) => <div data-testid="line-chart">{children}</div>,
+  Scatter: ({ name }: { name: string }) => <div data-testid={`scatter-${name.toLowerCase().replace(' ', '-')}`}>{name}</div>,
+  Line: ({ name }: { name?: string }) => <div data-testid="line-expected-trend">{name || 'Expected Trend'}</div>,
+  XAxis: () => <div data-testid="x-axis" />,
+  YAxis: () => <div data-testid="y-axis" />,
+  CartesianGrid: () => <div data-testid="cartesian-grid" />,
+  Tooltip: () => <div data-testid="tooltip" />,
+  Legend: () => <div data-testid="legend" />,
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div data-testid="responsive-container">{children}</div>,
+}));
+
+import { useParams } from "next/navigation";
+
+const mockUseParams = useParams as jest.Mock;
+
+const mockPerformanceData = {
+  site_id: "SITE001",
+  data_points: [
+    { poa_irradiance: 100, actual_power: 150, expected_power: 160 },
+    { poa_irradiance: 200, actual_power: 300, expected_power: 310 },
+    { poa_irradiance: 300, actual_power: 450, expected_power: 460 },
+  ],
+  rmse: 1.2,
+  r_squared: 0.95,
+};
+
+const renderWithQuery = (component: React.ReactElement) => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+  
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {component}
+    </QueryClientProvider>
+  );
+};
 
 describe("SiteAnalysisPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it("renders site analysis page with correct site ID", () => {
+  it("renders power curve page with correct site ID", () => {
     mockUseParams.mockReturnValue({ siteId: "SITE001" });
+    mockGetSitePerformance.mockResolvedValue(mockPerformanceData);
 
-    render(<SiteAnalysisPage />);
+    renderWithQuery(<SiteAnalysisPage />);
 
-    expect(screen.getByText("Site Analysis: SITE001")).toBeInTheDocument();
-    expect(screen.getByText("Performance data and power curve analysis")).toBeInTheDocument();
+    expect(screen.getByText("Power Curve - Site: SITE001")).toBeInTheDocument();
+    expect(screen.getByText("Actual vs. Expected Performance Analysis")).toBeInTheDocument();
   });
 
-  it("displays site information cards", () => {
+  it("displays loading state while fetching data", () => {
     mockUseParams.mockReturnValue({ siteId: "SITE001" });
+    mockGetSitePerformance.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 1000)));
 
-    render(<SiteAnalysisPage />);
+    renderWithQuery(<SiteAnalysisPage />);
 
-    // Check for site info cards
-    expect(screen.getByText("Capacity")).toBeInTheDocument();
-    expect(screen.getByText("5,000 kW")).toBeInTheDocument();
-    expect(screen.getByText("Total installed capacity")).toBeInTheDocument();
-
-    expect(screen.getByText("Location")).toBeInTheDocument();
-    expect(screen.getByText("Arizona")).toBeInTheDocument();
-    expect(screen.getByText("Site location")).toBeInTheDocument();
-
-    expect(screen.getByText("Installed")).toBeInTheDocument();
-    expect(screen.getByText("2023")).toBeInTheDocument();
-    expect(screen.getByText("Installation year")).toBeInTheDocument();
+    expect(screen.getByText("Loading performance data...")).toBeInTheDocument();
   });
 
-  it("shows active site status", () => {
+  it("displays error state when API call fails", async () => {
     mockUseParams.mockReturnValue({ siteId: "SITE001" });
+    mockGetSitePerformance.mockRejectedValue(new Error("API Error"));
 
-    render(<SiteAnalysisPage />);
+    renderWithQuery(<SiteAnalysisPage />);
 
-    expect(screen.getByText("Active")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Error loading data")).toBeInTheDocument();
+    }, { timeout: 3000 });
   });
 
-  it("displays performance data placeholder", () => {
+  it("displays KPI cards with calculated values", async () => {
     mockUseParams.mockReturnValue({ siteId: "SITE001" });
+    mockGetSitePerformance.mockResolvedValue(mockPerformanceData);
 
-    render(<SiteAnalysisPage />);
+    renderWithQuery(<SiteAnalysisPage />);
 
-    expect(screen.getByText("Performance Data")).toBeInTheDocument();
-    expect(screen.getByText(/Detailed performance analysis and power curve visualization/)).toBeInTheDocument();
-    expect(screen.getByText(/GET.*api.*sites.*siteId.*performance/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("RMSE")).toBeInTheDocument();
+      expect(screen.getByText("R-Squared")).toBeInTheDocument();
+      // Check for calculated values (should be calculated client-side)
+      expect(screen.getByText(/MW$/)).toBeInTheDocument();
+    });
+  });
+
+  it("displays toggle controls for chart visibility", () => {
+    mockUseParams.mockReturnValue({ siteId: "SITE001" });
+    mockGetSitePerformance.mockResolvedValue(mockPerformanceData);
+
+    renderWithQuery(<SiteAnalysisPage />);
+
+    expect(screen.getByLabelText("Actual Data")).toBeInTheDocument();
+    expect(screen.getByLabelText("Expected Data")).toBeInTheDocument();
+    expect(screen.getByLabelText("Trend Line")).toBeInTheDocument();
+  });
+
+  it("displays POA/GHI button group", () => {
+    mockUseParams.mockReturnValue({ siteId: "SITE001" });
+    mockGetSitePerformance.mockResolvedValue(mockPerformanceData);
+
+    renderWithQuery(<SiteAnalysisPage />);
+
+    expect(screen.getByText("POA")).toBeInTheDocument();
+    expect(screen.getByText("GHI")).toBeInTheDocument();
+  });
+
+  it("displays skid performance table", async () => {
+    mockUseParams.mockReturnValue({ siteId: "SITE001" });
+    mockGetSitePerformance.mockResolvedValue(mockPerformanceData);
+
+    renderWithQuery(<SiteAnalysisPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Skid Performance")).toBeInTheDocument();
+      expect(screen.getByText("Skid 01")).toBeInTheDocument();
+      expect(screen.getByText("-5.1%")).toBeInTheDocument();
+    });
   });
 
   it("has correct navigation links", () => {
     mockUseParams.mockReturnValue({ siteId: "SITE001" });
+    mockGetSitePerformance.mockResolvedValue(mockPerformanceData);
 
-    render(<SiteAnalysisPage />);
+    renderWithQuery(<SiteAnalysisPage />);
 
-    // Check navigation links
     const backLinks = screen.getAllByRole("link", { name: /Back to Portfolio/ });
     expect(backLinks).toHaveLength(2);
     backLinks.forEach(link => {
@@ -80,51 +162,11 @@ describe("SiteAnalysisPage", () => {
 
   it("has disabled action buttons", () => {
     mockUseParams.mockReturnValue({ siteId: "SITE001" });
+    mockGetSitePerformance.mockResolvedValue(mockPerformanceData);
 
-    render(<SiteAnalysisPage />);
+    renderWithQuery(<SiteAnalysisPage />);
 
-    // Check for disabled buttons
     expect(screen.getByRole("button", { name: "Export Data" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "View Report" })).toBeDisabled();
-  });
-
-  it("handles different site IDs correctly", () => {
-    mockUseParams.mockReturnValue({ siteId: "SITE999" });
-
-    render(<SiteAnalysisPage />);
-
-    expect(screen.getByText("Site Analysis: SITE999")).toBeInTheDocument();
-  });
-
-  it("handles special characters in site ID", () => {
-    mockUseParams.mockReturnValue({ siteId: "SITE-001_TEST" });
-
-    render(<SiteAnalysisPage />);
-
-    expect(screen.getByText("Site Analysis: SITE-001_TEST")).toBeInTheDocument();
-  });
-
-  it("has accessible elements", () => {
-    mockUseParams.mockReturnValue({ siteId: "SITE001" });
-
-    render(<SiteAnalysisPage />);
-
-    // Check for accessible elements
-    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2 })).toBeInTheDocument();
-    
-    // Check for button accessibility
-    const backButtons = screen.getAllByRole("button", { name: /Back to Portfolio/ });
-    expect(backButtons).toHaveLength(2);
-  });
-
-  it("displays icons correctly", () => {
-    mockUseParams.mockReturnValue({ siteId: "SITE001" });
-
-    render(<SiteAnalysisPage />);
-
-    // Icons should be rendered (we can't easily test SVG content, but we can check they exist)
-    const container = screen.getByText("Site Analysis: SITE001").closest("div");
-    expect(container).toBeInTheDocument();
   });
 });

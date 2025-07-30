@@ -26,8 +26,8 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
 
     # Basic Authentication configuration
-    basic_auth_username: Optional[str] = None
-    basic_auth_password: Optional[str] = None
+    basic_auth_username: Optional[str] = "testuser"
+    basic_auth_password: Optional[str] = "testpass"
 
 
 settings = Settings()

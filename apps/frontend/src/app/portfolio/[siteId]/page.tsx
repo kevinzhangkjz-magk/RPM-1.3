@@ -1,17 +1,55 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
-import { ArrowLeft, Zap, MapPin, Calendar, TrendingUp } from "lucide-react";
+import { ArrowLeft, TrendingUp } from "lucide-react";
+import { ScatterChart, Scatter, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { sitesApi, sitesQueryKeys } from "@/lib/api/sites";
+import { calculateRMSE, calculateRSquared } from "@/lib/utils";
 
 export default function SiteAnalysisPage() {
   const params = useParams();
   const siteId = params.siteId as string;
+  
+  // Toggle states for chart visibility
+  const [showActual, setShowActual] = useState(true);
+  const [showExpected, setShowExpected] = useState(true);
+  const [showTrendLine, setShowTrendLine] = useState(true);
+
+  // Fetch site performance data
+  const { data: performanceData, isLoading, error } = useQuery({
+    queryKey: sitesQueryKeys.sitePerformance(siteId),
+    queryFn: () => sitesApi.getSitePerformance(siteId),
+  });
+
+  // Calculate client-side metrics if backend doesn't provide them
+  const rmse = performanceData ? calculateRMSE(performanceData.data_points) : 0;
+  const rSquared = performanceData ? calculateRSquared(performanceData.data_points) : 0;
+
+  // Prepare chart data
+  const chartData = performanceData?.data_points.map((point, index) => ({
+    id: index,
+    poa_irradiance: point.poa_irradiance,
+    actual_power: point.actual_power,
+    expected_power: point.expected_power,
+  })) || [];
+
+  // Generate trend line data for expected power
+  const trendLineData = chartData
+    .sort((a, b) => a.poa_irradiance - b.poa_irradiance)
+    .map(point => ({
+      poa_irradiance: point.poa_irradiance,
+      expected_power: point.expected_power,
+    }));
 
   return (
     <div className="min-h-screen p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
@@ -28,56 +66,192 @@ export default function SiteAnalysisPage() {
           </div>
           
           <h1 className="text-4xl font-bold mb-2">
-            Site Analysis: {siteId}
+            Power Curve - Site: {siteId}
           </h1>
           <p className="text-xl text-muted-foreground">
-            Performance data and power curve analysis
+            Actual vs. Expected Performance Analysis
           </p>
         </div>
 
-        {/* Site Info Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <div className="border rounded-lg p-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="h-5 w-5 text-blue-600" />
-              <h3 className="font-semibold">Capacity</h3>
-            </div>
-            <p className="text-2xl font-bold">5,000 kW</p>
-            <p className="text-sm text-muted-foreground">Total installed capacity</p>
-          </div>
-          
-          <div className="border rounded-lg p-6">
-            <div className="flex items-center gap-2 mb-2">
-              <MapPin className="h-5 w-5 text-green-600" />
-              <h3 className="font-semibold">Location</h3>
-            </div>
-            <p className="text-2xl font-bold">Arizona</p>
-            <p className="text-sm text-muted-foreground">Site location</p>
-          </div>
-          
-          <div className="border rounded-lg p-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Calendar className="h-5 w-5 text-purple-600" />
-              <h3 className="font-semibold">Installed</h3>
-            </div>
-            <p className="text-2xl font-bold">2023</p>
-            <p className="text-sm text-muted-foreground">Installation year</p>
-          </div>
-        </div>
+        {/* Main Content Grid */}
+        <div className="grid lg:grid-cols-4 gap-8">
+          {/* Chart Section */}
+          <div className="lg:col-span-3">
+            <Card>
+              <CardHeader>
+                <CardTitle>Power Curve Visualization</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="h-96 flex items-center justify-center">
+                    <div className="text-center">
+                      <TrendingUp className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">Loading performance data...</p>
+                    </div>
+                  </div>
+                ) : error ? (
+                  <div className="h-96 flex items-center justify-center">
+                    <div className="text-center">
+                      <p className="text-red-500 mb-2">Error loading data</p>
+                      <p className="text-sm text-muted-foreground">{error.message}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-96">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ScatterChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="poa_irradiance" 
+                          name="POA Irradiance"
+                          label={{ value: 'POA Irradiance (W/m²)', position: 'insideBottom', offset: -10 }}
+                        />
+                        <YAxis 
+                          name="Power"
+                          label={{ value: 'Power (kW)', angle: -90, position: 'insideLeft' }}
+                        />
+                        <Tooltip 
+                          formatter={(value, name) => [
+                            typeof value === 'number' ? value.toFixed(2) : value,
+                            name === 'actual_power' ? 'Actual Power (kW)' : 
+                            name === 'expected_power' ? 'Expected Power (kW)' : name
+                          ]}
+                          labelFormatter={(value) => `POA Irradiance: ${value} W/m²`}
+                        />
+                        <Legend />
+                        
+                        {showActual && (
+                          <Scatter 
+                            dataKey="actual_power" 
+                            fill="#3b82f6" 
+                            name="Actual Power"
+                          />
+                        )}
+                        
+                        {showExpected && (
+                          <Scatter 
+                            dataKey="expected_power" 
+                            fill="#6b7280" 
+                            name="Expected Power"
+                          />
+                        )}
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                    
+                    {/* Trend Line Chart Overlay */}
+                    {showTrendLine && trendLineData.length > 0 && (
+                      <ResponsiveContainer width="100%" height="96" style={{ marginTop: -384 }}>
+                        <LineChart data={trendLineData}>
+                          <Line 
+                            dataKey="expected_power" 
+                            stroke="#ef4444" 
+                            strokeWidth={2}
+                            dot={false}
+                            name="Expected Trend"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-        {/* Placeholder for Performance Data */}
-        <div className="border rounded-lg p-8 text-center">
-          <TrendingUp className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-2xl font-semibold mb-2">Performance Data</h2>
-          <p className="text-muted-foreground mb-4">
-            Detailed performance analysis and power curve visualization will be implemented in future stories.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            This page will integrate with the backend API endpoint: 
-            <code className="bg-muted px-2 py-1 rounded ml-1">
-              GET /api/sites/{siteId}/performance
-            </code>
-          </p>
+            {/* Chart Controls */}
+            <Card className="mt-4">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <Switch 
+                        checked={showActual} 
+                        onCheckedChange={setShowActual}
+                        id="toggle-actual"
+                      />
+                      <label htmlFor="toggle-actual" className="text-sm font-medium">
+                        Actual Data
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch 
+                        checked={showExpected} 
+                        onCheckedChange={setShowExpected}
+                        id="toggle-expected"
+                      />
+                      <label htmlFor="toggle-expected" className="text-sm font-medium">
+                        Expected Data
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch 
+                        checked={showTrendLine} 
+                        onCheckedChange={setShowTrendLine}
+                        id="toggle-trend"
+                      />
+                      <label htmlFor="toggle-trend" className="text-sm font-medium">
+                        Trend Line
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm">
+                      POA
+                    </Button>
+                    <Button variant="ghost" size="sm">
+                      GHI
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* KPI Cards Sidebar */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">RMSE</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">
+                  {isLoading ? "..." : `${rmse.toFixed(1)} MW`}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">R-Squared</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">
+                  {isLoading ? "..." : rSquared.toFixed(2)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Skid Performance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Skid 01</span>
+                    <span className="text-red-500">-5.1%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Skid 02</span>
+                    <span className="text-green-500">+2.3%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Skid 03</span>
+                    <span className="text-yellow-500">-0.8%</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Navigation */}
