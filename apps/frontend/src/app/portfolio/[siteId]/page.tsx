@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
 import { ArrowLeft, TrendingUp } from "lucide-react";
-import { ScatterChart, Scatter, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { ScatterChart, Scatter, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart } from "recharts";
 import { sitesApi, sitesQueryKeys } from "@/lib/api/sites";
 import { calculateRMSE, calculateRSquared } from "@/lib/utils";
 
@@ -40,20 +40,25 @@ export default function SiteAnalysisPage() {
   const rmse = performanceData ? calculateRMSE(performanceData.data_points) : 0;
   const rSquared = performanceData ? calculateRSquared(performanceData.data_points) : 0;
 
-  // Prepare chart data
+  // Prepare chart data - convert kW to MW
   const chartData = performanceData?.data_points.map((point, index) => ({
     id: index,
     poa_irradiance: point.poa_irradiance,
-    actual_power: point.actual_power,
-    expected_power: point.expected_power,
+    actual_power: point.actual_power / 1000, // Convert kW to MW
+    expected_power: point.expected_power / 1000, // Convert kW to MW
   })) || [];
 
-  // Generate trend line data for expected power
-  const trendLineData = chartData
-    .sort((a, b) => a.poa_irradiance - b.poa_irradiance)
+  // Create chart data with trend line capability
+  // Use original data for scatter points, but sort by irradiance for trend line
+  const chartDataWithTrend = [...chartData].sort((a, b) => a.poa_irradiance - b.poa_irradiance);
+  
+  // Generate trend line data by creating a smooth curve through expected power points
+  // Filter out invalid data points and create trend line
+  const trendLineData = chartDataWithTrend
+    .filter(point => point.poa_irradiance > 0 && point.expected_power > 0)
     .map(point => ({
-      poa_irradiance: point.poa_irradiance,
-      expected_power: point.expected_power,
+      ...point,
+      trend_power: point.expected_power // Use expected power as trend line
     }));
 
   return (
@@ -114,7 +119,7 @@ export default function SiteAnalysisPage() {
                 ) : (
                   <div className="h-96">
                     <ResponsiveContainer width="100%" height="100%">
-                      <ScatterChart data={chartData}>
+                      <ComposedChart data={trendLineData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis 
                           dataKey="poa_irradiance" 
@@ -123,18 +128,20 @@ export default function SiteAnalysisPage() {
                         />
                         <YAxis 
                           name="Power"
-                          label={{ value: 'Power (kW)', angle: -90, position: 'insideLeft' }}
+                          label={{ value: 'Power (MW)', angle: -90, position: 'insideLeft' }}
                         />
                         <Tooltip 
                           formatter={(value, name) => [
-                            typeof value === 'number' ? value.toFixed(2) : value,
-                            name === 'actual_power' ? 'Actual Power (kW)' : 
-                            name === 'expected_power' ? 'Expected Power (kW)' : name
+                            typeof value === 'number' ? value.toFixed(3) : value,
+                            name === 'actual_power' ? 'Actual Power (MW)' : 
+                            name === 'expected_power' ? 'Expected Power (MW)' : 
+                            name === 'trend_power' ? 'Expected Trend (MW)' : name
                           ]}
                           labelFormatter={(value) => `POA Irradiance: ${value} W/m²`}
                         />
                         <Legend />
                         
+                        {/* Scatter plots for actual and expected power */}
                         {showActual && (
                           <Scatter 
                             dataKey="actual_power" 
@@ -150,23 +157,21 @@ export default function SiteAnalysisPage() {
                             name="Expected Power"
                           />
                         )}
-                      </ScatterChart>
-                    </ResponsiveContainer>
-                    
-                    {/* Trend Line Chart Overlay */}
-                    {showTrendLine && trendLineData.length > 0 && (
-                      <ResponsiveContainer width="100%" height="96" style={{ marginTop: -384 }}>
-                        <LineChart data={trendLineData}>
+                        
+                        {/* Trend line - uses trend_power for smooth curve */}
+                        {showTrendLine && (
                           <Line 
-                            dataKey="expected_power" 
+                            dataKey="trend_power" 
                             stroke="#ef4444" 
-                            strokeWidth={2}
+                            strokeWidth={3}
                             dot={false}
                             name="Expected Trend"
+                            connectNulls={false}
+                            type="monotone"
                           />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    )}
+                        )}
+                      </ComposedChart>
+                    </ResponsiveContainer>
                   </div>
                 )}
               </CardContent>
