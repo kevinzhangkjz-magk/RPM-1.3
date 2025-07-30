@@ -58,8 +58,11 @@ class TestSitePerformanceRepository:
         # Verify query was called with correct parameters
         mock_connection.execute.assert_called_once()
         call_args = mock_connection.execute.call_args
-        assert "site_id" in call_args[0][1]
-        assert call_args[0][1]["site_id"] == self.test_site_id
+        # The parameters are start_date and end_date, site_id is embedded in the query
+        assert "start_date" in call_args[0][1]
+        assert "end_date" in call_args[0][1]
+        assert call_args[0][1]["start_date"] == self.test_start_date
+        assert call_args[0][1]["end_date"] == self.test_end_date
 
     @patch("src.dal.site_performance.get_database_connection")
     def test_get_site_performance_data_database_error(self, mock_get_connection):
@@ -88,15 +91,14 @@ class TestSitePerformanceRepository:
         mock_get_connection.return_value = MagicMock()
         repo = SitePerformanceRepository()
 
-        query = repo._build_performance_query()
+        query = repo._build_performance_query(self.test_site_id, self.test_start_date, self.test_end_date)
 
         # Verify query contains expected elements
         assert "SELECT" in query
-        assert "inverter_telemetry" in query
-        assert "sites" in query
-        assert "inverter_availability = 1.0" in query
-        assert "ORDER BY t.timestamp ASC" in query
-        assert ":site_id" in query
+        assert "desri_" in query  # Monthly table naming convention
+        assert "AVG(CASE WHEN tag = 'P'" in query  # Power data aggregation
+        assert "AVG(CASE WHEN tag = 'POA'" in query  # Irradiance data aggregation
+        assert "ORDER BY timestamp ASC" in query
         assert ":start_date" in query
         assert ":end_date" in query
 

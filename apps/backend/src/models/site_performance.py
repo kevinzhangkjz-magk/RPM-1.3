@@ -147,7 +147,12 @@ class SitePerformanceQueryParams(BaseModel):
     @classmethod
     def validate_date_not_future(cls, v):
         """Validate that dates are not in the future"""
-        if v > datetime.now():
+        from datetime import timezone
+        
+        # Handle both timezone-aware and timezone-naive datetimes
+        now = datetime.now(timezone.utc) if v.tzinfo else datetime.now()
+        
+        if v > now:
             raise ValueError("Date cannot be in the future")
         return v
 
