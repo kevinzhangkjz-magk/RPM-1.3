@@ -48,18 +48,8 @@ export default function SiteAnalysisPage() {
     expected_power: point.expected_power / 1000, // Convert kW to MW
   })) || [];
 
-  // Create chart data with trend line capability
-  // Use original data for scatter points, but sort by irradiance for trend line
-  const chartDataWithTrend = [...chartData].sort((a, b) => a.poa_irradiance - b.poa_irradiance);
-  
-  // Generate trend line data by creating a smooth curve through expected power points
-  // Filter out invalid data points and create trend line
-  const trendLineData = chartDataWithTrend
-    .filter(point => point.poa_irradiance > 0 && point.expected_power > 0)
-    .map(point => ({
-      ...point,
-      trend_power: point.expected_power // Use expected power as trend line
-    }));
+  // Create sorted data for trend line rendering
+  const sortedChartData = [...chartData].sort((a, b) => a.poa_irradiance - b.poa_irradiance);
 
   return (
     <div className="min-h-screen p-8">
@@ -119,25 +109,54 @@ export default function SiteAnalysisPage() {
                 ) : (
                   <div className="h-96">
                     <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={trendLineData}>
+                      <ComposedChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis 
                           dataKey="poa_irradiance" 
-                          name="POA Irradiance"
                           label={{ value: 'POA Irradiance (W/m²)', position: 'insideBottom', offset: -10 }}
                         />
                         <YAxis 
-                          name="Power"
                           label={{ value: 'Power (MW)', angle: -90, position: 'insideLeft' }}
                         />
                         <Tooltip 
-                          formatter={(value, name) => [
-                            typeof value === 'number' ? value.toFixed(3) : value,
-                            name === 'actual_power' ? 'Actual Power (MW)' : 
-                            name === 'expected_power' ? 'Expected Power (MW)' : 
-                            name === 'trend_power' ? 'Expected Trend (MW)' : name
-                          ]}
+                          formatter={(value, name) => {
+                            // Skip rendering poa_irradiance in the content
+                            if (name === 'poa_irradiance') return null;
+                            
+                            const formattedValue = typeof value === 'number' ? value.toFixed(3) : value;
+                            const formattedName = name === 'actual_power' ? 'Actual Power' : 
+                                                name === 'expected_power' ? 'Expected Power' : 
+                                                name === 'trend_power' ? 'Expected Trend' : name;
+                            return [formattedValue, formattedName];
+                          }}
                           labelFormatter={(value) => `POA Irradiance: ${value} W/m²`}
+                          content={(props) => {
+                            const { active, payload, label } = props;
+                            if (active && payload && payload.length) {
+                              return (
+                                <div className="bg-white p-2 border rounded shadow-sm">
+                                  <p className="font-medium">{`POA Irradiance: ${label} W/m²`}</p>
+                                  {payload
+                                    .filter(entry => entry.dataKey !== 'poa_irradiance')
+                                    .map((entry, index) => {
+                                      const value = typeof entry.value === 'number' ? entry.value.toFixed(3) : entry.value;
+                                      let displayName = entry.name;
+                                      if (entry.dataKey === 'actual_power') displayName = 'Actual Power';
+                                      else if (entry.dataKey === 'expected_power' && entry.name === 'Expected Power') displayName = 'Expected Power';
+                                      else if (entry.dataKey === 'expected_power' && entry.name === 'Expected Trend') displayName = 'Expected Trend';
+                                      
+                                      const unit = entry.dataKey === 'actual_power' || entry.dataKey === 'expected_power' ? ' MW' : '';
+                                      return (
+                                        <p key={index} style={{ color: entry.color }}>
+                                          {`${displayName} : ${value}${unit}`}
+                                        </p>
+                                      );
+                                    })}
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
                         />
                         <Legend />
                         
@@ -158,10 +177,11 @@ export default function SiteAnalysisPage() {
                           />
                         )}
                         
-                        {/* Trend line - uses trend_power for smooth curve */}
+                        {/* Trend line - uses expected_power with sorted data */}
                         {showTrendLine && (
                           <Line 
-                            dataKey="trend_power" 
+                            data={sortedChartData}
+                            dataKey="expected_power" 
                             stroke="#ef4444" 
                             strokeWidth={3}
                             dot={false}
