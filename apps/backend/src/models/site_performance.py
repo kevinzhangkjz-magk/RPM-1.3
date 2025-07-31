@@ -245,5 +245,114 @@ class ErrorResponse(BaseModel):
     details: Optional[dict] = Field(None, description="Additional error details")
 
 
+# Skid models
+class SkidPerformance(BaseModel):
+    """Skid performance data with aggregate metrics"""
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "skid_id": "SKID001",
+                "skid_name": "Skid 01",
+                "avg_actual_power": 450.5,
+                "avg_expected_power": 468.2,
+                "deviation_percentage": -3.8,
+                "data_point_count": 1440
+            }
+        }
+    )
+    
+    skid_id: str = Field(..., description="Unique identifier for the skid")
+    skid_name: Optional[str] = Field(None, description="Human-readable name of the skid")
+    avg_actual_power: float = Field(..., ge=0, description="Average actual power (kW)")
+    avg_expected_power: float = Field(..., ge=0, description="Average expected power (kW)")
+    deviation_percentage: float = Field(..., description="Performance deviation percentage")
+    data_point_count: int = Field(..., ge=0, description="Number of data points")
+
+
+class SkidsListResponse(BaseModel):
+    """Response model for skids list endpoint"""
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "site_id": "SITE001",
+                "skids": [
+                    {
+                        "skid_id": "SKID001",
+                        "skid_name": "Skid 01",
+                        "avg_actual_power": 450.5,
+                        "avg_expected_power": 468.2,
+                        "deviation_percentage": -3.8,
+                        "data_point_count": 1440
+                    }
+                ],
+                "total_count": 3
+            }
+        }
+    )
+    
+    site_id: str = Field(..., description="Site identifier")
+    skids: List[SkidPerformance] = Field(..., description="List of skid performance data")
+    total_count: int = Field(..., ge=0, description="Total number of skids")
+
+
+# Inverter models
+class InverterPerformance(BaseModel):
+    """Inverter performance data with individual metrics"""
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "inverter_id": "INV001",
+                "inverter_name": "Inverter 01",
+                "avg_actual_power": 45.5,
+                "avg_expected_power": 46.8,
+                "deviation_percentage": -2.8,
+                "availability": 1.0,
+                "data_point_count": 1440
+            }
+        }
+    )
+    
+    inverter_id: str = Field(..., description="Unique identifier for the inverter")
+    inverter_name: Optional[str] = Field(None, description="Human-readable name of the inverter")
+    avg_actual_power: float = Field(..., ge=0, description="Average actual power (kW)")
+    avg_expected_power: float = Field(..., ge=0, description="Average expected power (kW)")
+    deviation_percentage: float = Field(..., description="Performance deviation percentage")
+    availability: float = Field(..., ge=0, le=1, description="Inverter availability (0.0 to 1.0)")
+    data_point_count: int = Field(..., ge=0, description="Number of data points")
+
+
+class InvertersListResponse(BaseModel):
+    """Response model for inverters list endpoint"""
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "skid_id": "SKID001",
+                "inverters": [
+                    {
+                        "inverter_id": "INV001",
+                        "inverter_name": "Inverter 01",
+                        "avg_actual_power": 45.5,
+                        "avg_expected_power": 46.8,
+                        "deviation_percentage": -2.8,
+                        "availability": 1.0,
+                        "data_point_count": 1440
+                    }
+                ],
+                "total_count": 10
+            }
+        }
+    )
+    
+    skid_id: str = Field(..., description="Skid identifier")
+    inverters: List[InverterPerformance] = Field(..., description="List of inverter performance data")
+    total_count: int = Field(..., ge=0, description="Total number of inverters")
+
+
 # Update forward references
 SitePerformanceResponse.model_rebuild()
+SkidsListResponse.model_rebuild()
+InvertersListResponse.model_rebuild()

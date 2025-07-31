@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import api_router, sites_router
+from src.api.routes import api_router, sites_router, skids_router
 from src.core.config import settings
 
 # Create FastAPI app
@@ -24,6 +24,7 @@ app.add_middleware(
 # Include routers
 app.include_router(api_router)
 app.include_router(sites_router)
+app.include_router(skids_router)
 
 
 # AWS Lambda handler for serverless deployment
