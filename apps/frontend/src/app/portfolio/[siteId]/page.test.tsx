@@ -142,8 +142,8 @@ describe("SiteAnalysisPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Skid Performance")).toBeInTheDocument();
-      expect(screen.getByText("Skid 01")).toBeInTheDocument();
-      expect(screen.getByText("-5.1%")).toBeInTheDocument();
+      expect(screen.getByText("View All Skids")).toBeInTheDocument();
+      expect(screen.getByText("Click to view detailed comparison")).toBeInTheDocument();
     });
   });
 

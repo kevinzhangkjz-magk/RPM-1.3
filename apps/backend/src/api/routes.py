@@ -276,7 +276,6 @@ async def get_site_skids(
         )
 
 
-
 # Skids API routes
 skids_router = APIRouter(prefix="/api/skids", tags=["skids"])
 

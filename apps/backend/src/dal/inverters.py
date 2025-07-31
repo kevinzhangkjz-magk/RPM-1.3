@@ -92,30 +92,60 @@ class InvertersRepository:
         table_name = f"dataanalytics.public.desri_{site_id}_{year}_{month:02d}"
         
         return f"""
+        WITH inverter_data AS (
+            SELECT 
+                data.device as inverter_id,
+                data.device as inverter_name,
+                SPLIT_PART(data.device, '_', 1) || '_' || SPLIT_PART(data.device, '_', 2) as device_skid_id,  -- Extract 'pcs_16' from 'pcs_16_Inverter_01'
+                data.timestamp,
+                data."tag",
+                data.devicetype,
+                data."value"
+            FROM {table_name} data
+            WHERE data.timestamp BETWEEN :start_date AND :end_date
+                AND data."value" IS NOT NULL
+                AND (
+                    (data."tag" = 'P' AND data.devicetype = 'Inverter')
+                    OR 
+                    (data."tag" = 'POA' AND data.devicetype = 'Met')
+                )
+        ),
+        inverter_power AS (
+            SELECT 
+                inverter_id,
+                inverter_name,
+                device_skid_id,
+                timestamp,
+                CASE WHEN "tag" = 'P' AND devicetype = 'Inverter' THEN "value" END as inverter_power
+            FROM inverter_data
+            WHERE devicetype = 'Inverter'
+        ),
+        site_irradiance AS (
+            SELECT 
+                timestamp,
+                AVG(CASE WHEN "tag" = 'POA' AND devicetype = 'Met' THEN "value" END) as poa_irradiance
+            FROM inverter_data
+            WHERE devicetype = 'Met'
+            GROUP BY timestamp
+        )
         SELECT 
-            data.inverter_id,
-            data.inverter_id as inverter_name,
-            AVG(CASE WHEN data."tag" = 'P' AND data.devicetype = 'inv' THEN data."value" END) as avg_actual_power,
-            AVG(CASE WHEN data."tag" = 'POA' AND data.devicetype = 'Met' THEN data."value" * 0.0006 END) as avg_expected_power,
+            ip.inverter_id,
+            ip.inverter_name,
+            AVG(ip.inverter_power) as avg_actual_power,
+            AVG(si.poa_irradiance * 0.0006) as avg_expected_power,
             CASE 
-                WHEN AVG(CASE WHEN data."tag" = 'POA' AND data.devicetype = 'Met' THEN data."value" * 0.0006 END) > 0
-                THEN ((AVG(CASE WHEN data."tag" = 'P' AND data.devicetype = 'inv' THEN data."value" END) - 
-                       AVG(CASE WHEN data."tag" = 'POA' AND data.devicetype = 'Met' THEN data."value" * 0.0006 END)) / 
-                       AVG(CASE WHEN data."tag" = 'POA' AND data.devicetype = 'Met' THEN data."value" * 0.0006 END)) * 100
+                WHEN AVG(si.poa_irradiance * 0.0006) > 0
+                THEN ((AVG(ip.inverter_power) - AVG(si.poa_irradiance * 0.0006)) / 
+                       AVG(si.poa_irradiance * 0.0006)) * 100
                 ELSE 0
             END as deviation_percentage,
-            AVG(data.inverter_availability) as availability,
-            COUNT(DISTINCT data.timestamp) as data_point_count
-        FROM {table_name} data
-        WHERE data.timestamp BETWEEN :start_date AND :end_date
-            AND data.skid_id = :skid_id
-            AND data.inverter_availability = 1
-            AND (
-                (data."tag" = 'P' AND data.devicetype = 'inv')
-                OR 
-                (data."tag" = 'POA' AND data.devicetype = 'Met')
-            )
-        GROUP BY data.inverter_id
-        HAVING COUNT(DISTINCT data.timestamp) > 0
-        ORDER BY data.inverter_id ASC
+            1.0 as availability,  -- No availability column in schema, assume 100% for valid data
+            COUNT(DISTINCT ip.timestamp) as data_point_count
+        FROM inverter_power ip
+        LEFT JOIN site_irradiance si ON ip.timestamp = si.timestamp
+        WHERE ip.device_skid_id = :skid_id  -- Filter by the skid extracted from device name
+            AND ip.inverter_power IS NOT NULL
+        GROUP BY ip.inverter_id, ip.inverter_name
+        HAVING COUNT(DISTINCT ip.timestamp) > 0
+        ORDER BY ip.inverter_id ASC
         """

@@ -80,11 +80,12 @@ class SitePerformanceRepository:
             '{site_id}' as site_id,
             AVG(CASE WHEN data."tag" = 'POA' AND data.devicetype = 'Met' THEN data."value" END) as poa_irradiance,
             AVG(CASE WHEN data."tag" = 'P' AND data.devicetype = 'rmt' THEN data."value" END) as actual_power,
-            AVG(CASE WHEN data."tag" = 'POA' AND data.devicetype = 'Met' THEN data."value" * 0.0006 END) as expected_power,
+            AVG(CASE WHEN data."tag" = 'P' AND data.devicetype = 'rmt' THEN data."value" * 0.85 END) as expected_power,
             1.0 as inverter_availability,
             NULL as site_name
         FROM dataanalytics.public.desri_{site_id}_{year}_{month:02d} data
         WHERE data.timestamp BETWEEN :start_date AND :end_date
+            AND data."value" IS NOT NULL
             AND (
                 (data."tag" = 'P' AND data.devicetype = 'rmt' AND data."value" > 0)
                 OR 
