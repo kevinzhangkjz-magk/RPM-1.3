@@ -6,8 +6,10 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
-import { ArrowLeft, TrendingUp, BarChart3 } from "lucide-react";
+import { ArrowLeft, TrendingUp, BarChart3, Calendar } from "lucide-react";
 import { Scatter, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, BarChart, Bar, Cell } from "recharts";
 import { sitesApi, sitesQueryKeys } from "@/lib/api/sites";
 import { calculateRMSE, calculateRSquared } from "@/lib/utils";
@@ -24,6 +26,71 @@ export default function SiteAnalysisPage() {
   const [showExpected, setShowExpected] = useState(true);
   const [showTrendLine, setShowTrendLine] = useState(true);
 
+  // Date range state
+  const [dateRange, setDateRange] = useState<{
+    startDate: Date | null;
+    endDate: Date | null;
+    preset: 'auto' | 'current' | 'previous' | 'last3' | 'last6' | 'custom';
+  }>({
+    startDate: null,
+    endDate: null,
+    preset: 'auto' // Auto will try current month first, then fall back
+  });
+
+  // Helper function to calculate date ranges based on preset
+  const calculateDateRange = (preset: typeof dateRange.preset) => {
+    const now = new Date();
+    switch (preset) {
+      case 'current': {
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        return { startDate: start, endDate: end > now ? now : end };
+      }
+      case 'previous': {
+        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+        return { startDate: start, endDate: end };
+      }
+      case 'last3': {
+        const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        return { startDate: start, endDate: end > now ? now : end };
+      }
+      case 'last6': {
+        const start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        return { startDate: start, endDate: end > now ? now : end };
+      }
+      default:
+        return { startDate: null, endDate: null };
+    }
+  };
+
+  // Handle date range preset changes
+  const handlePresetChange = (preset: typeof dateRange.preset) => {
+    if (preset === 'custom') {
+      setDateRange(prev => ({ ...prev, preset }));
+    } else {
+      const { startDate, endDate } = calculateDateRange(preset);
+      setDateRange({ startDate, endDate, preset });
+    }
+  };
+
+  // Format date range for display
+  const formatDateRange = (range: typeof dateRange) => {
+    if (range.preset === 'auto') return 'Auto (Smart Default)';
+    if (range.preset === 'current') return 'Current Month';
+    if (range.preset === 'previous') return 'Previous Month';
+    if (range.preset === 'last3') return 'Last 3 Months';
+    if (range.preset === 'last6') return 'Last 6 Months';
+    if (range.preset === 'custom' && range.startDate && range.endDate) {
+      const start = range.startDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      const end = range.endDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      return start === end ? start : `${start} - ${end}`;
+    }
+    return 'Select Range';
+  };
+
   // Fetch site data for connectivity status
   const { data: sitesData } = useQuery({
     queryKey: sitesQueryKeys.lists(),
@@ -35,8 +102,19 @@ export default function SiteAnalysisPage() {
 
   // Fetch site performance data
   const { data: performanceData, isLoading, error } = useQuery({
-    queryKey: sitesQueryKeys.sitePerformance(siteId),
-    queryFn: () => sitesApi.getSitePerformance(siteId),
+    queryKey: [...sitesQueryKeys.sitePerformance(siteId), dateRange],
+    queryFn: () => {
+      // If using auto or no specific dates, let the API handle smart defaulting
+      if (dateRange.preset === 'auto' || (!dateRange.startDate || !dateRange.endDate)) {
+        return sitesApi.getSitePerformance(siteId);
+      }
+      // Use specific date range
+      return sitesApi.getSitePerformance(
+        siteId,
+        dateRange.startDate.toISOString(),
+        dateRange.endDate.toISOString()
+      );
+    },
   });
 
   // Fetch skids data for the skid-level view
@@ -78,6 +156,48 @@ export default function SiteAnalysisPage() {
       avg_expected_power_mw: skid.avg_expected_power / 1000
     })) || [];
   }, [skidsData]);
+
+  // Extract date range from performance data with fallback info
+  const dateRangeDisplay = useMemo(() => {
+    if (!performanceData?.data_points || performanceData.data_points.length === 0) {
+      return '';
+    }
+    
+    // Get first and last timestamps
+    const timestamps = performanceData.data_points.map(point => new Date(point.timestamp));
+    const startDate = new Date(Math.min(...timestamps.map(d => d.getTime())));
+    const endDate = new Date(Math.max(...timestamps.map(d => d.getTime())));
+    
+    // Format month and year
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+    const month = monthNames[startDate.getMonth()];
+    const year = startDate.getFullYear();
+    
+    let dateRange = '';
+    // Check if all data is from the same month
+    if (startDate.getMonth() === endDate.getMonth() && 
+        startDate.getFullYear() === endDate.getFullYear()) {
+      dateRange = `${month} ${year}`;
+    } else {
+      // Handle date ranges spanning multiple months
+      const endMonth = monthNames[endDate.getMonth()];
+      const endYear = endDate.getFullYear();
+      if (year === endYear) {
+        dateRange = `${month} - ${endMonth} ${year}`;
+      } else {
+        dateRange = `${month} ${year} - ${endMonth} ${endYear}`;
+      }
+    }
+    
+    // Add fallback message if this is fallback data
+    const fallbackData = performanceData as typeof performanceData & { isFallbackData?: boolean };
+    if (fallbackData.isFallbackData) {
+      return `${dateRange} - No current month data available`;
+    }
+    
+    return dateRange;
+  }, [performanceData]);
 
   return (
     <div className="min-h-screen p-8">
@@ -138,10 +258,41 @@ export default function SiteAnalysisPage() {
           {/* Chart Section */}
           <div className="lg:col-span-3">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle>
-                  {viewMode === 'skids' ? 'Skid Comparative Analysis' : 'Power Curve Visualization'}
+                  {viewMode === 'skids' 
+                    ? 'Skid Comparative Analysis' 
+                    : `Power Curve Visualization${dateRangeDisplay ? ` (Data: ${dateRangeDisplay})` : ''}`}
                 </CardTitle>
+                {viewMode === 'site' && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-fit justify-start text-left font-normal">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {formatDateRange(dateRange)}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                      <div className="p-3">
+                        <Select 
+                          value={dateRange.preset} 
+                          onValueChange={(value) => handlePresetChange(value as typeof dateRange.preset)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select date range" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">Auto (Smart Default)</SelectItem>
+                            <SelectItem value="current">Current Month</SelectItem>
+                            <SelectItem value="previous">Previous Month</SelectItem>
+                            <SelectItem value="last3">Last 3 Months</SelectItem>
+                            <SelectItem value="last6">Last 6 Months</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
               </CardHeader>
               <CardContent>
                 {viewMode === 'site' ? (

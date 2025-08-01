@@ -14,15 +14,24 @@ export interface SitesResponse {
 }
 
 export interface ApiError {
-  error: string;
-  message: string;
+  error?: string;
+  message?: string;
+  detail?: string | {
+    error?: string;
+    message?: string;
+    details?: Record<string, unknown>;
+  };
   details?: Record<string, unknown>;
 }
 
 export interface PerformanceDataPoint {
+  timestamp: string;
+  site_id: string;
   poa_irradiance: number;
   actual_power: number;
   expected_power: number;
+  inverter_availability: number;
+  site_name: string | null;
 }
 
 export interface SitePerformanceResponse {
