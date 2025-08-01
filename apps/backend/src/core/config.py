@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     redshift_host: Optional[str] = 'data-analytics.crmjfkw9o04v.us-east-1.redshift.amazonaws.com'
     redshift_port: int = 5439
     redshift_database: Optional[str] = 'desri_analytics'
-    redshift_user: Optional[str] = 'chail'
-    redshift_password: Optional[str] = 'U2bqPmM88D2d'
+    redshift_user: Optional[str] = 'kevin_zhang'
+    redshift_password: Optional[str] = '%9af$Jc]ufCC'
     redshift_ssl: bool = True
 
     # AWS settings (for serverless deployment)
