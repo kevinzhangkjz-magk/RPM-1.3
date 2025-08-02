@@ -259,11 +259,18 @@ export default function SiteAnalysisPage() {
           <div className="lg:col-span-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle>
-                  {viewMode === 'skids' 
-                    ? 'Skid Comparative Analysis' 
-                    : `Power Curve Visualization${dateRangeDisplay ? ` (Data: ${dateRangeDisplay})` : ''}`}
-                </CardTitle>
+                <div>
+                  <CardTitle>
+                    {viewMode === 'skids' 
+                      ? 'Skid Comparative Analysis' 
+                      : `Power Curve Visualization${dateRangeDisplay ? ` (Data: ${dateRangeDisplay})` : ''}`}
+                  </CardTitle>
+                  {viewMode === 'skids' && skidsChartData.length > 15 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Showing all {skidsChartData.length} skids - scroll horizontally to view all
+                    </p>
+                  )}
+                </div>
                 {viewMode === 'site' && (
                   <Popover>
                     <PopoverTrigger asChild>
@@ -416,67 +423,69 @@ export default function SiteAnalysisPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="h-96">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={skidsChartData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis 
-                            dataKey="skid_name" 
-                            label={{ value: 'Skids', position: 'insideBottom', offset: -10 }}
-                          />
-                          <YAxis 
-                            label={{ value: 'Power (MW)', angle: -90, position: 'insideLeft' }}
-                          />
-                          <Tooltip 
-                            content={(props) => {
-                              const { active, payload, label } = props;
-                              if (active && payload && payload.length && payload[0].payload) {
-                                const data = payload[0].payload;
-                                return (
-                                  <div className="bg-white p-3 border rounded shadow-sm">
-                                    <p className="font-medium mb-2">{label}</p>
-                                    <div className="space-y-1">
-                                      <p className="text-blue-600">
-                                        Actual Power: {data.avg_actual_power_mw?.toFixed(3)} MW
-                                      </p>
-                                      <p className="text-gray-600">
-                                        Expected Power: {data.avg_expected_power_mw?.toFixed(3)} MW
-                                      </p>
-                                      <p className={`font-medium ${
-                                        data.deviation_percentage < -2 ? 'text-red-600' : 
-                                        data.deviation_percentage > 0 ? 'text-green-600' : 'text-yellow-600'
-                                      }`}>
-                                        Deviation: {data.deviation_percentage?.toFixed(1)}%
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        Data Points: {data.data_point_count}
-                                      </p>
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                          <Legend />
-                          <Bar 
-                            dataKey="avg_actual_power_mw" 
-                            name="Actual Power"
+                    <div 
+                      className="h-96 overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
+                      style={{
+                        scrollbarWidth: 'thin',
+                        scrollbarColor: '#9ca3af #f3f4f6'
+                      }}
+                    >
+                      <div style={{ 
+                        width: '100%',
+                        minWidth: `${Math.max(400, skidsChartData.length * 12)}px`,
+                        height: '100%'
+                      }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart 
+                            data={skidsChartData}
+                            margin={{ top: 5, right: 1, left: 20, bottom: 60 }}
+                            barCategoryGap={-2}
+                            barGap={0}
                           >
-                            {skidsChartData.map((skid, index) => (
-                              <Cell 
-                                key={`cell-${index}`} 
-                                fill={skid.deviation_percentage < -2 ? "#dc2626" : "#3b82f6"}
-                              />
-                            ))}
-                          </Bar>
-                          <Bar 
-                            dataKey="avg_expected_power_mw" 
-                            fill="#6b7280" 
-                            name="Expected Power"
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="skid_name" 
+                              angle={-70}
+                              textAnchor="end"
+                              height={100}
+                              interval={0}
+                              tick={{ fontSize: 7 }}
+                            />
+                            <YAxis 
+                              label={{ value: 'Power (MW)', angle: -90, position: 'insideLeft' }}
+                            />
+                            <Tooltip 
+                              content={(props) => {
+                                const { active, payload, label } = props;
+                                if (active && payload && payload.length && payload[0].payload) {
+                                  const data = payload[0].payload;
+                                  return (
+                                    <div className="bg-white p-3 border rounded shadow-sm">
+                                      <p className="font-medium mb-2">{label}</p>
+                                      <div className="space-y-1">
+                                        <p className="text-blue-600">
+                                          Actual Power: {data.avg_actual_power_mw?.toFixed(3)} MW
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          Data Points: {data.data_point_count}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <Legend />
+                            <Bar 
+                              dataKey="avg_actual_power_mw" 
+                              name="Actual Power"
+                              fill="#3b82f6"
+                              barSize={10}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
                   )
                 )}
@@ -624,10 +633,10 @@ export default function SiteAnalysisPage() {
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Average Deviation:</span>
+                        <span>Average Power:</span>
                         <span className="font-medium">
                           {skidsData?.skids ? 
-                            `${(skidsData.skids.reduce((acc, skid) => acc + skid.deviation_percentage, 0) / skidsData.skids.length).toFixed(1)}%`
+                            `${(skidsData.skids.reduce((acc, skid) => acc + skid.avg_actual_power, 0) / skidsData.skids.length / 1000).toFixed(1)} MW`
                             : 'N/A'
                           }
                         </span>
@@ -641,16 +650,16 @@ export default function SiteAnalysisPage() {
                     <CardTitle className="text-lg">Underperforming Skids</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2 text-sm">
+                    <div className="h-48 overflow-y-auto space-y-2 text-sm">
                       {skidsData?.skids ? (
                         skidsData.skids
-                          .filter(skid => skid.deviation_percentage < -2) // Skids with >2% negative deviation
-                          .slice(0, 5) // Show top 5 worst performers
+                          .sort((a, b) => a.avg_actual_power - b.avg_actual_power) // Sort by lowest MW first
+                          .slice(0, 10) // Show up to 10 skids
                           .map((skid) => (
                             <div key={skid.skid_id} className="flex justify-between items-center p-2 rounded bg-red-50">
-                              <span>{skid.skid_name}</span>
+                              <span>{skid.skid_id}</span>
                               <span className="text-red-600 font-medium">
-                                {skid.deviation_percentage.toFixed(1)}%
+                                {(skid.avg_actual_power / 1000).toFixed(1)} MW
                               </span>
                             </div>
                           ))
@@ -666,17 +675,16 @@ export default function SiteAnalysisPage() {
                     <CardTitle className="text-lg">Top Performers</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2 text-sm">
+                    <div className="h-48 overflow-y-auto space-y-2 text-sm">
                       {skidsData?.skids ? (
                         skidsData.skids
-                          .filter(skid => skid.deviation_percentage > 0) // Positive deviation
-                          .sort((a, b) => b.deviation_percentage - a.deviation_percentage)
-                          .slice(0, 3)
+                          .sort((a, b) => b.avg_actual_power - a.avg_actual_power) // Sort by highest MW first
+                          .slice(0, 10) // Show up to 10 skids
                           .map((skid) => (
                             <div key={skid.skid_id} className="flex justify-between items-center p-2 rounded bg-green-50">
-                              <span>{skid.skid_name}</span>
+                              <span>{skid.skid_id}</span>
                               <span className="text-green-600 font-medium">
-                                +{skid.deviation_percentage.toFixed(1)}%
+                                {(skid.avg_actual_power / 1000).toFixed(1)} MW
                               </span>
                             </div>
                           ))
