@@ -29,5 +29,10 @@ class Settings(BaseSettings):
     basic_auth_username: Optional[str] = "testuser"
     basic_auth_password: Optional[str] = "testpass"
 
+    # AI Service configuration
+    openai_api_key: Optional[str] = "your_openai_api_key_here"
+    ai_model: str = "gpt-4o-mini"
+    ai_max_tokens: int = 1000
+
 
 settings = Settings()

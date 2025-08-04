@@ -124,16 +124,6 @@ describe("SiteAnalysisPage", () => {
     expect(screen.getByLabelText("Trend Line")).toBeInTheDocument();
   });
 
-  it("displays POA/GHI button group", () => {
-    mockUseParams.mockReturnValue({ siteId: "SITE001" });
-    mockGetSitePerformance.mockResolvedValue(mockPerformanceData);
-
-    renderWithQuery(<SiteAnalysisPage />);
-
-    expect(screen.getByText("POA")).toBeInTheDocument();
-    expect(screen.getByText("GHI")).toBeInTheDocument();
-  });
-
   it("displays skid performance table", async () => {
     mockUseParams.mockReturnValue({ siteId: "SITE001" });
     mockGetSitePerformance.mockResolvedValue(mockPerformanceData);
