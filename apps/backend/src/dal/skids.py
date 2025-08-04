@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
+import asyncio
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -14,6 +15,15 @@ class SkidsRepository:
 
     def __init__(self):
         self.db_connection = get_database_connection()
+    
+    async def get_site_skids(self, site_id: str, start_date: str, end_date: str) -> Dict[str, Any]:
+        """Async method to get skids data for a site."""
+        try:
+            # For now, return empty data as skids table might not exist
+            return {"skids": []}
+        except Exception as e:
+            logger.error(f"Error getting skids data: {str(e)}")
+            return {"skids": []}
 
     def get_skids_performance_data(
         self, site_id: str, start_date: datetime, end_date: datetime

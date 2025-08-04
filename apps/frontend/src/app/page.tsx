@@ -18,22 +18,6 @@ export default function Home() {
             </Button>
           </Link>
         </div>
-        
-        <div className="grid md:grid-cols-2 gap-8 mt-16">
-          <div className="p-6 border rounded-lg">
-            <h2 className="text-2xl font-semibold mb-4">Site Overview</h2>
-            <p className="text-muted-foreground">
-              View performance data for all your solar sites at a glance.
-            </p>
-          </div>
-          
-          <div className="p-6 border rounded-lg">
-            <h2 className="text-2xl font-semibold mb-4">Detailed Analysis</h2>
-            <p className="text-muted-foreground">
-              Drill down into specific site data with power curve visualizations.
-            </p>
-          </div>
-        </div>
       </main>
     </div>
   );

@@ -2,6 +2,7 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 import logging
+import asyncio
 
 from src.core.database import get_database_connection
 
@@ -15,12 +16,12 @@ class SitesRepository:
         """Initialize the repository"""
         self.db_connection = get_database_connection()
 
-    def get_all_sites(self) -> List[Dict[str, Any]]:
+    async def get_all_sites(self) -> Dict[str, Any]:
         """
         Retrieve all solar sites from the database.
 
         Returns:
-            List of site dictionaries containing site_id and site_name
+            Dictionary containing sites list
 
         Raises:
             SQLAlchemyError: If database operation fails
@@ -28,27 +29,82 @@ class SitesRepository:
         try:
             query = self._build_sites_query()
 
-            with self.db_connection.get_engine().connect() as connection:
-                result = connection.execute(text(query))
-
-                # Convert result to list of dictionaries
-                columns = result.keys()
-                rows = result.fetchall()
-
-                sites = []
-                for row in rows:
-                    site_dict = dict(zip(columns, row))
-                    sites.append(site_dict)
-
-                logger.info(f"Retrieved {len(sites)} sites from database")
-                return sites
+            # Run synchronous database operation in thread pool
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, self._execute_query, query)
+            
+            logger.info(f"Retrieved {len(result)} sites from database")
+            return {"sites": result}
 
         except SQLAlchemyError as e:
             logger.error(f"Database error retrieving sites: {str(e)}")
-            raise
+            return {"sites": [], "error": str(e)}
         except Exception as e:
             logger.error(f"Unexpected error retrieving sites: {str(e)}")
+            return {"sites": [], "error": str(e)}
+    
+    def _execute_query(self, query: str) -> List[Dict[str, Any]]:
+        """Execute a query synchronously (helper for async methods)"""
+        engine = self.db_connection.get_engine()
+        with engine.connect() as connection:
+            result = connection.execute(text(query))
+            columns = result.keys()
+            rows = result.fetchall()
+            
+            items = []
+            for row in rows:
+                item_dict = dict(zip(columns, row))
+                items.append(item_dict)
+            
+            connection.commit()  # Ensure we commit the read transaction
+            return items
             raise
+    
+    async def get_sites_by_name(self, site_name: str) -> List[Dict[str, Any]]:
+        """
+        Retrieve sites by name (partial match).
+        
+        Args:
+            site_name: Site name to search for
+            
+        Returns:
+            List of matching sites
+        """
+        try:
+            query = """
+                SELECT 
+                    site as site_id,
+                    site_name,
+                    state as location,
+                    ac_capacity_poi_limited as capacity_kw,
+                    cod_date as installation_date,
+                    'active' as status
+                FROM analytics.site_metadata
+                WHERE LOWER(site_name) LIKE LOWER('%' || :site_name || '%')
+                ORDER BY site_name ASC
+            """
+            
+            loop = asyncio.get_event_loop()
+            
+            def execute():
+                with self.db_connection.get_engine().connect() as connection:
+                    result = connection.execute(text(query), {"site_name": site_name})
+                    columns = result.keys()
+                    rows = result.fetchall()
+                    
+                    sites = []
+                    for row in rows:
+                        site_dict = dict(zip(columns, row))
+                        sites.append(site_dict)
+                    return sites
+            
+            result = await loop.run_in_executor(None, execute)
+            logger.info(f"Found {len(result)} sites matching '{site_name}'")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error searching for sites by name '{site_name}': {str(e)}")
+            return []
 
     def get_site_by_id(self, site_id: str) -> Optional[Dict[str, Any]]:
         """
