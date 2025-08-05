@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { useChatStore } from '@/lib/stores/chatStore';
+import { useChatStore } from '../../../lib/stores/chatStore';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ChatInput } from './ChatInput';

@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
-import { useChatStore } from '@/lib/stores/chatStore';
+import { useChatStore } from '../../../lib/stores/chatStore';
 import { Button } from '@/components/ui/button';
-import { sitesApi } from '@/lib/api/sites';
+import { sitesApi } from '../../../lib/api/sites';
 import { AIQueryRequest } from '@/types/chat';
 
 export function ChatInput() {
