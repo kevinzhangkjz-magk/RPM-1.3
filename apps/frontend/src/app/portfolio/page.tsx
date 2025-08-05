@@ -52,7 +52,7 @@ export default function PortfolioPage() {
     );
   }
 
-  const sites = sitesData?.sites || [];
+  const sites = sitesData?.data || [];
 
   return (
     <div className="min-h-screen p-8">
