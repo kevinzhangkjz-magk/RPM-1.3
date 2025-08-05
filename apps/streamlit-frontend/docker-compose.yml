@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  streamlit-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rpm-streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=${API_BASE_URL:-http://backend:8000}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    volumes:
+      - ./static:/app/static
+      - ./.streamlit:/app/.streamlit:ro
+    networks:
+      - rpm-network
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  backend:
+    image: rpm-backend:latest
+    container_name: rpm-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDSHIFT_HOST=${REDSHIFT_HOST}
+      - REDSHIFT_PORT=${REDSHIFT_PORT}
+      - REDSHIFT_DATABASE=${REDSHIFT_DATABASE}
+      - REDSHIFT_USER=${REDSHIFT_USER}
+      - REDSHIFT_PASSWORD=${REDSHIFT_PASSWORD}
+    networks:
+      - rpm-network
+    restart: unless-stopped
+
+networks:
+  rpm-network:
+    driver: bridge

@@ -1,0 +1,39 @@
+[theme]
+# Professional dark theme for solar asset management
+primaryColor = "#00D4FF"           # Bright cyan for primary actions
+backgroundColor = "#0E1117"        # Dark background
+secondaryBackgroundColor = "#1A1F2E"  # Slightly lighter for cards
+textColor = "#FAFAFA"              # High contrast text
+
+# Font configuration
+font = "sans serif"
+
+[server]
+# Performance optimization
+maxUploadSize = 200
+maxMessageSize = 200
+enableCORS = true
+enableXsrfProtection = true
+
+# WebSocket configuration for real-time updates
+enableWebsocketCompression = true
+
+[browser]
+# App metadata
+gatherUsageStats = false
+serverAddress = "localhost"
+serverPort = 8501
+
+[runner]
+# Magic commands disabled for production
+magicEnabled = false
+fastReruns = true
+
+[client]
+# UI improvements
+showErrorDetails = true
+toolbarMode = "minimal"
+
+[deprecation]
+# Disable deprecation warnings in production
+showPyplotGlobalUse = false
