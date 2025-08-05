@@ -133,7 +133,7 @@ export default function PortfolioPage() {
                   )}
                 </div>
 
-                <Link href={`/portfolio/${site.site_id}`}>
+                <Link href={`/site?id=${site.site_id}`}>
                   <Button className="w-full" variant="outline">
                     View Performance
                     <ArrowRight className="h-4 w-4 ml-2" />
