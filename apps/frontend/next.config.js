@@ -1,12 +1,13 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
+
 const nextConfig = {
-  experimental: {
-    // Ensure Turbo is properly configured
-    turbo: {
-      resolveAlias: {
-        '@': './src',
-      },
-    },
+  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': path.resolve(__dirname, 'src'),
+    };
+    return config;
   },
 }
 
