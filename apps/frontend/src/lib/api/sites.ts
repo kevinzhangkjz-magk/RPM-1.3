@@ -3,6 +3,46 @@ import { AIQueryRequest, AIQueryResponse } from "@/types/chat";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// Mock data for demo purposes when API is not available
+const mockSites = [
+  {
+    site_id: 'ASMB2',
+    site_name: 'Arizona Solar Farm B2',
+    location: 'Phoenix, AZ',
+    capacity_kw: 25000,
+    installation_date: '2023-01-15',
+    connectivity_status: 'connected'
+  },
+  {
+    site_id: 'TXSF1',
+    site_name: 'Texas Solar Field 1',
+    location: 'Austin, TX',
+    capacity_kw: 18500,
+    installation_date: '2022-08-20',
+    connectivity_status: 'connected'
+  },
+  {
+    site_id: 'CASV3',
+    site_name: 'California Solar Valley 3',
+    location: 'Los Angeles, CA',
+    capacity_kw: 32000,
+    installation_date: '2023-05-10',
+    connectivity_status: 'disconnected'
+  }
+];
+
+const mockPerformanceData = {
+  data: [
+    { date: '2024-01-01', actual_power: 850, predicted_power: 820, skid_id: 'SKID-001' },
+    { date: '2024-01-02', actual_power: 920, predicted_power: 890, skid_id: 'SKID-001' },
+    { date: '2024-01-03', actual_power: 780, predicted_power: 800, skid_id: 'SKID-001' },
+    { date: '2024-01-04', actual_power: 950, predicted_power: 920, skid_id: 'SKID-002' },
+    { date: '2024-01-05', actual_power: 870, predicted_power: 850, skid_id: 'SKID-002' },
+    { date: '2024-01-06', actual_power: 810, predicted_power: 830, skid_id: 'SKID-003' },
+    { date: '2024-01-07', actual_power: 960, predicted_power: 940, skid_id: 'SKID-003' },
+  ]
+};
+
 class ApiClient {
   private baseUrl: string;
   private credentials: string;
@@ -58,79 +98,93 @@ class ApiClient {
   }
 
   async getSites(): Promise<SitesResponse> {
-    return this.request<SitesResponse>("/api/sites/");
+    try {
+      return await this.request<SitesResponse>("/api/sites/");
+    } catch (error) {
+      console.log("API not available, using mock data for sites");
+      // Return mock data when API is not available
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+      return { data: mockSites };
+    }
   }
 
   async getSitePerformance(siteId: string, startDate?: string, endDate?: string): Promise<SitePerformanceResponse> {
-    // If dates are provided, use them directly
-    if (startDate && endDate) {
-      const params = new URLSearchParams({
-        start_date: startDate,
-        end_date: endDate
-      });
-      
-      console.log(`Fetching performance data for site: ${siteId}`, {
-        start_date: startDate,
-        end_date: endDate,
-        url: `/api/sites/${siteId}/performance?${params}`
-      });
-      
-      return this.request<SitePerformanceResponse>(`/api/sites/${siteId}/performance?${params}`);
-    }
-
-    // Smart defaulting: try current month first, then fall back to previous month
-    const now = new Date();
-    const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    
-    // If current month end is in the future, use current time instead
-    const safeCurrentEnd = currentMonthEnd > now ? new Date(now.getTime() - 60000) : currentMonthEnd;
-    
     try {
-      // Try current month first
-      const currentParams = new URLSearchParams({
-        start_date: currentMonth.toISOString(),
-        end_date: safeCurrentEnd.toISOString()
-      });
-      
-      console.log(`Trying current month data for site: ${siteId}`, {
-        start_date: currentMonth.toISOString(),
-        end_date: safeCurrentEnd.toISOString()
-      });
-      
-      const currentMonthResponse = await this.request<SitePerformanceResponse>(`/api/sites/${siteId}/performance?${currentParams}`);
-      
-      // If we have data points, return current month data
-      if (currentMonthResponse.data_points && currentMonthResponse.data_points.length > 0) {
-        return currentMonthResponse;
+      // If dates are provided, use them directly
+      if (startDate && endDate) {
+        const params = new URLSearchParams({
+          start_date: startDate,
+          end_date: endDate
+        });
+        
+        console.log(`Fetching performance data for site: ${siteId}`, {
+          start_date: startDate,
+          end_date: endDate,
+          url: `/api/sites/${siteId}/performance?${params}`
+        });
+        
+        return await this.request<SitePerformanceResponse>(`/api/sites/${siteId}/performance?${params}`);
       }
+
+      // Smart defaulting: try current month first, then fall back to previous month
+      const now = new Date();
+      const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
       
-      // No data in current month, fall back to previous month
-      throw new Error('No data in current month');
+      // If current month end is in the future, use current time instead
+      const safeCurrentEnd = currentMonthEnd > now ? new Date(now.getTime() - 60000) : currentMonthEnd;
       
-    } catch {
-      // Fall back to previous month
-      const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const previousMonthEnd = new Date(previousMonth.getFullYear(), previousMonth.getMonth() + 1, 0, 23, 59, 59);
-      
-      const fallbackParams = new URLSearchParams({
-        start_date: previousMonth.toISOString(),
-        end_date: previousMonthEnd.toISOString()
-      });
-      
-      console.log(`Falling back to previous month data for site: ${siteId}`, {
-        start_date: previousMonth.toISOString(),
-        end_date: previousMonthEnd.toISOString()
-      });
-      
-      const fallbackResponse = await this.request<SitePerformanceResponse>(`/api/sites/${siteId}/performance?${fallbackParams}`);
-      
-      // Add metadata to indicate this is fallback data
-      return {
-        ...fallbackResponse,
-        isFallbackData: true,
-        fallbackReason: 'No data available for current month'
-      } as SitePerformanceResponse & { isFallbackData: boolean; fallbackReason: string };
+      try {
+        // Try current month first
+        const currentParams = new URLSearchParams({
+          start_date: currentMonth.toISOString(),
+          end_date: safeCurrentEnd.toISOString()
+        });
+        
+        console.log(`Trying current month data for site: ${siteId}`, {
+          start_date: currentMonth.toISOString(),
+          end_date: safeCurrentEnd.toISOString()
+        });
+        
+        const currentMonthResponse = await this.request<SitePerformanceResponse>(`/api/sites/${siteId}/performance?${currentParams}`);
+        
+        // If we have data points, return current month data
+        if (currentMonthResponse.data_points && currentMonthResponse.data_points.length > 0) {
+          return currentMonthResponse;
+        }
+        
+        // No data in current month, fall back to previous month
+        throw new Error('No data in current month');
+        
+      } catch {
+        // Fall back to previous month
+        const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const previousMonthEnd = new Date(previousMonth.getFullYear(), previousMonth.getMonth() + 1, 0, 23, 59, 59);
+        
+        const fallbackParams = new URLSearchParams({
+          start_date: previousMonth.toISOString(),
+          end_date: previousMonthEnd.toISOString()
+        });
+        
+        console.log(`Falling back to previous month data for site: ${siteId}`, {
+          start_date: previousMonth.toISOString(),
+          end_date: previousMonthEnd.toISOString()
+        });
+        
+        const fallbackResponse = await this.request<SitePerformanceResponse>(`/api/sites/${siteId}/performance?${fallbackParams}`);
+        
+        // Add metadata to indicate this is fallback data
+        return {
+          ...fallbackResponse,
+          isFallbackData: true,
+          fallbackReason: 'No data available for current month'
+        } as SitePerformanceResponse & { isFallbackData: boolean; fallbackReason: string };
+      }
+    } catch (error) {
+      console.log(`API not available, using mock data for site ${siteId}`);
+      // Return mock data when API is not available
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate delay
+      return mockPerformanceData;
     }
   }
 
