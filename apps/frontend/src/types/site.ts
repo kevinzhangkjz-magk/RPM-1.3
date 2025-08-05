@@ -32,13 +32,35 @@ export interface PerformanceDataPoint {
   expected_power: number;
   inverter_availability: number;
   site_name: string | null;
+  // Additional fields that might be present after transformation
+  date?: string;
+  predicted_power?: number;
+  skid_id?: string;
+}
+
+export interface SitePerformanceSummary {
+  data_point_count: number;
+  start_date: string;
+  end_date: string;
+  avg_actual_power: number;
+  avg_expected_power: number;
+  total_actual_energy: number;
+  total_expected_energy: number;
+  performance_ratio: number;
 }
 
 export interface SitePerformanceResponse {
   site_id: string;
+  site_name?: string;
   data_points: PerformanceDataPoint[];
+  summary: SitePerformanceSummary;
   rmse: number;
   r_squared: number;
+  // Legacy field for backward compatibility
+  data?: PerformanceDataPoint[];
+  // Fallback data indicators
+  isFallbackData?: boolean;
+  fallbackReason?: string;
 }
 
 export interface SkidPerformance {

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
 import { ArrowLeft, TrendingUp, BarChart3 } from "lucide-react";
-import { Scatter, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, BarChart, Bar, Cell } from "recharts";
+import { Scatter, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, BarChart, Bar } from "recharts";
 import { sitesApi, sitesQueryKeys } from "../../lib/api/sites";
 import { calculateRMSE, calculateRSquared } from "../../lib/utils";
 
@@ -29,23 +29,44 @@ export default function SiteAnalysisWrapper() {
     queryFn: () => sitesApi.getSitePerformance(siteId),
   });
 
-  const { actualData, predictedData, combinedData, rmse, rSquared } = useMemo(() => {
-    if (!siteData?.data) {
+  const { combinedData, rmse, rSquared } = useMemo(() => {
+    // Check for data_points in the response
+    if (!siteData?.data_points || siteData.data_points.length === 0) {
       return {
-        actualData: [],
-        predictedData: [],
         combinedData: [],
-        rmse: 0,
-        rSquared: 0,
+        rmse: siteData?.rmse || 0,
+        rSquared: siteData?.r_squared || 0,
       };
     }
 
-    const data = siteData.data;
+    // Transform the data points to include necessary fields
+    const transformedData = siteData.data_points.map((point) => {
+      // Convert timestamp to date string for display
+      const date = new Date(point.timestamp).toISOString().split('T')[0];
+      
+      return {
+        ...point,
+        date,
+        // Use expected_power as predicted_power for consistency
+        predicted_power: point.expected_power,
+        // Add skid_id if not present (for site-level aggregation)
+        skid_id: point.skid_id || 'SITE_AGGREGATE',
+      };
+    });
+
+    const data = transformedData;
     
     // Site-level view: aggregate all skids
     if (viewMode === 'site') {
       // Group by date and sum power across all skids
-      const dailyTotals = data.reduce((acc: any, curr: any) => {
+      interface DailyTotal {
+        date: string;
+        actual_power: number;
+        predicted_power: number;
+        skids: Set<string>;
+      }
+      
+      const dailyTotals = data.reduce((acc: Record<string, DailyTotal>, curr) => {
         const date = curr.date;
         if (!acc[date]) {
           acc[date] = { 
@@ -61,34 +82,30 @@ export default function SiteAnalysisWrapper() {
         return acc;
       }, {});
 
-      const aggregatedData = Object.values(dailyTotals).map((item: any) => ({
+      const aggregatedData = Object.values(dailyTotals).map((item) => ({
         date: item.date,
         actual_power: item.actual_power,
         predicted_power: item.predicted_power,
         skid_count: item.skids.size
       }));
 
-      const actualValues = aggregatedData.map((d: any) => d.actual_power);
-      const predictedValues = aggregatedData.map((d: any) => d.predicted_power);
+      const actualValues = aggregatedData.map((d) => d.actual_power);
+      const predictedValues = aggregatedData.map((d) => d.predicted_power);
 
       return {
-        actualData: aggregatedData.map((d: any) => ({ x: d.date, y: d.actual_power })),
-        predictedData: aggregatedData.map((d: any) => ({ x: d.date, y: d.predicted_power })),
         combinedData: aggregatedData,
-        rmse: calculateRMSE(actualValues, predictedValues),
-        rSquared: calculateRSquared(actualValues, predictedValues),
+        rmse: siteData?.rmse || calculateRMSE(actualValues, predictedValues),
+        rSquared: siteData?.r_squared || calculateRSquared(actualValues, predictedValues),
       };
     } else {
       // Skid-level view: show individual skids
-      const actualValues = data.map((d: any) => d.actual_power);
-      const predictedValues = data.map((d: any) => d.predicted_power);
+      const actualValues = data.map((d) => d.actual_power);
+      const predictedValues = data.map((d) => d.predicted_power);
 
       return {
-        actualData: data.map((d: any) => ({ x: d.date, y: d.actual_power, skid: d.skid_id })),
-        predictedData: data.map((d: any) => ({ x: d.date, y: d.predicted_power, skid: d.skid_id })),
         combinedData: data,
-        rmse: calculateRMSE(actualValues, predictedValues),
-        rSquared: calculateRSquared(actualValues, predictedValues),
+        rmse: siteData?.rmse || calculateRMSE(actualValues, predictedValues),
+        rSquared: siteData?.r_squared || calculateRSquared(actualValues, predictedValues),
       };
     }
   }, [siteData, viewMode]);
@@ -102,6 +119,9 @@ export default function SiteAnalysisWrapper() {
   }
 
   if (siteError) {
+    const errorMessage = siteError instanceof Error ? siteError.message : 'Unknown error occurred';
+    const is404 = errorMessage.includes('404') || errorMessage.includes('not found');
+    
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="max-w-md">
@@ -112,8 +132,16 @@ export default function SiteAnalysisWrapper() {
           </CardHeader>
           <CardContent>
             <p className="text-gray-600 mb-4">
-              Unable to load performance data for Site {siteId}. Please try again or contact support.
+              {is404 
+                ? `Site ${siteId} not found. Please check the site ID and try again.`
+                : `Unable to load performance data for Site ${siteId}. ${errorMessage}`
+              }
             </p>
+            <div className="text-sm text-gray-500 mb-4">
+              {is404 && (
+                <p>Available site IDs typically follow patterns like: SITE001, SITE002, etc.</p>
+              )}
+            </div>
             <Link href="/portfolio">
               <Button variant="outline" className="w-full">
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -122,6 +150,49 @@ export default function SiteAnalysisWrapper() {
             </Link>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  // Check if we have no data points
+  if (!siteLoading && siteData && (!siteData.data_points || siteData.data_points.length === 0)) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center gap-4">
+              <Link href="/portfolio">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Portfolio
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {siteData?.site_name || `Site ${siteId}`}
+                </h1>
+                <p className="text-sm text-gray-500">No data available</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>No Performance Data Available</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">
+                There is no performance data available for this site in the selected time period.
+                {siteData?.isFallbackData && (
+                  <span className="block mt-2 text-sm">
+                    {siteData.fallbackReason}
+                  </span>
+                )}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -141,10 +212,13 @@ export default function SiteAnalysisWrapper() {
               </Link>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
-                  Site {siteId} Performance Analysis
+                  {siteData?.site_name || `Site ${siteId}`} Performance Analysis
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Predictive analytics and performance metrics
+                  {siteData?.summary 
+                    ? `${siteData.summary.data_point_count} data points from ${new Date(siteData.summary.start_date).toLocaleDateString()} to ${new Date(siteData.summary.end_date).toLocaleDateString()}`
+                    : 'Predictive analytics and performance metrics'
+                  }
                 </p>
               </div>
             </div>
@@ -216,7 +290,7 @@ export default function SiteAnalysisWrapper() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {combinedData.length}
+                {combinedData?.length || 0}
               </div>
               <p className="text-xs text-muted-foreground">
                 {viewMode === 'site' ? 'Daily aggregates' : 'Individual measurements'}
@@ -299,8 +373,8 @@ export default function SiteAnalysisWrapper() {
                     <Scatter 
                       name="Power Comparison" 
                       data={combinedData.map(d => ({ 
-                        actual_power: d.actual_power, 
-                        predicted_power: d.predicted_power 
+                        actual_power: d.actual_power || 0, 
+                        predicted_power: d.predicted_power || 0
                       }))} 
                       fill="#2563eb"
                     />
