@@ -3,45 +3,6 @@ import { AIQueryRequest, AIQueryResponse } from "@/types/chat";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// Mock data for demo purposes when API is not available
-const mockSites = [
-  {
-    site_id: 'ASMB2',
-    site_name: 'Arizona Solar Farm B2',
-    location: 'Phoenix, AZ',
-    capacity_kw: 25000,
-    installation_date: '2023-01-15',
-    connectivity_status: 'connected'
-  },
-  {
-    site_id: 'TXSF1',
-    site_name: 'Texas Solar Field 1',
-    location: 'Austin, TX',
-    capacity_kw: 18500,
-    installation_date: '2022-08-20',
-    connectivity_status: 'connected'
-  },
-  {
-    site_id: 'CASV3',
-    site_name: 'California Solar Valley 3',
-    location: 'Los Angeles, CA',
-    capacity_kw: 32000,
-    installation_date: '2023-05-10',
-    connectivity_status: 'disconnected'
-  }
-];
-
-const mockPerformanceData = {
-  data: [
-    { date: '2024-01-01', actual_power: 850, predicted_power: 820, skid_id: 'SKID-001' },
-    { date: '2024-01-02', actual_power: 920, predicted_power: 890, skid_id: 'SKID-001' },
-    { date: '2024-01-03', actual_power: 780, predicted_power: 800, skid_id: 'SKID-001' },
-    { date: '2024-01-04', actual_power: 950, predicted_power: 920, skid_id: 'SKID-002' },
-    { date: '2024-01-05', actual_power: 870, predicted_power: 850, skid_id: 'SKID-002' },
-    { date: '2024-01-06', actual_power: 810, predicted_power: 830, skid_id: 'SKID-003' },
-    { date: '2024-01-07', actual_power: 960, predicted_power: 940, skid_id: 'SKID-003' },
-  ]
-};
 
 class ApiClient {
   private baseUrl: string;
@@ -98,14 +59,7 @@ class ApiClient {
   }
 
   async getSites(): Promise<SitesResponse> {
-    try {
-      return await this.request<SitesResponse>("/api/sites/");
-    } catch (error) {
-      console.log("API not available, using mock data for sites");
-      // Return mock data when API is not available
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
-      return { data: mockSites };
-    }
+    return await this.request<SitesResponse>("/api/sites/");
   }
 
   async getSitePerformance(siteId: string, startDate?: string, endDate?: string): Promise<SitePerformanceResponse> {
@@ -181,10 +135,7 @@ class ApiClient {
         } as SitePerformanceResponse & { isFallbackData: boolean; fallbackReason: string };
       }
     } catch (error) {
-      console.log(`API not available, using mock data for site ${siteId}`);
-      // Return mock data when API is not available
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate delay
-      return mockPerformanceData;
+      throw error;
     }
   }
 
