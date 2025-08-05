@@ -12,8 +12,9 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from lib.session_state import initialize_session_state, update_navigation_context
-from lib.api_client import get_api_client
+from lib.session_state_isolated import initialize_session_state, update_navigation_context, get_session_value
+from lib.api_client_refactored import get_api_client
+from lib.auth_manager import check_and_redirect_auth
 from components.navigation import (
     render_breadcrumb, 
     render_date_range_selector,
@@ -42,11 +43,14 @@ initialize_session_state()
 # Apply theme
 theme.apply_custom_theme()
 
+# Check authentication
+check_and_redirect_auth()
+
 # Get API client
 api_client = get_api_client()
 
 # Check if site is selected
-if not st.session_state.get('selected_site'):
+if not get_session_value('selected_site'):
     st.warning("No site selected. Please select a site from the portfolio.")
     if st.button("← Go to Portfolio"):
         st.switch_page("pages/1_Portfolio.py")

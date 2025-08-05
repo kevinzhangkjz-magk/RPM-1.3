@@ -13,12 +13,13 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from lib.session_state import (
+from lib.session_state_isolated import (
     initialize_session_state, 
-    get_dashboard_layout,
-    save_dashboard_layout
+    get_session_value,
+    set_session_value
 )
-from lib.api_client import get_api_client
+from lib.api_client_refactored import get_api_client
+from lib.auth_manager import check_and_redirect_auth
 from components.widgets import (
     render_performance_leaderboard,
     render_active_alerts,
@@ -41,6 +42,9 @@ initialize_session_state()
 
 # Apply theme
 theme.apply_custom_theme()
+
+# Check authentication
+check_and_redirect_auth()
 
 # Get API client
 api_client = get_api_client()
