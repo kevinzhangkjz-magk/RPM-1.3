@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Path, status, Depends
+from fastapi import APIRouter, HTTPException, Query, Path, status, Depends, Request
 from datetime import datetime
 from typing import Optional
 
@@ -19,7 +19,7 @@ from src.dal.site_performance import SitePerformanceRepository
 from src.dal.sites import SitesRepository
 from src.dal.skids import SkidsRepository
 from src.dal.inverters import InvertersRepository
-from src.core.security import get_current_user
+from src.core.security import get_current_user, get_current_user_skip_options
 
 # Main API router
 api_router = APIRouter()
@@ -44,7 +44,7 @@ sites_router = APIRouter(prefix="/api/sites", tags=["sites"])
 
 
 @sites_router.get("/", response_model=SitesListResponse)
-async def list_sites(current_user: str = Depends(get_current_user)):
+async def list_sites(request: Request, current_user: str = Depends(get_current_user_skip_options)):
     """
     Retrieve list of all solar sites.
 
@@ -80,6 +80,7 @@ async def list_sites(current_user: str = Depends(get_current_user)):
 
 @sites_router.get("/{site_id}/performance", response_model=SitePerformanceResponse)
 async def get_site_performance(
+    request: Request,
     site_id: str = Path(..., description="Site identifier", min_length=1),
     start_date: datetime = Query(
         ..., description="Start date for data retrieval (ISO format)"
@@ -87,7 +88,7 @@ async def get_site_performance(
     end_date: datetime = Query(
         ..., description="End date for data retrieval (ISO format)"
     ),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(get_current_user_skip_options),
 ):
     """
     Retrieve time-series performance data for a specific site.
@@ -184,6 +185,7 @@ async def get_site_performance(
 
 @sites_router.get("/{site_id}/skids", response_model=SkidsListResponse)
 async def get_site_skids(
+    request: Request,
     site_id: str = Path(..., description="Site identifier", min_length=1),
     start_date: datetime = Query(
         ..., description="Start date for data retrieval (ISO format)"
@@ -191,7 +193,7 @@ async def get_site_skids(
     end_date: datetime = Query(
         ..., description="End date for data retrieval (ISO format)"
     ),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(get_current_user_skip_options),
 ):
     """
     Retrieve aggregated performance data for all skids on a site.
@@ -283,6 +285,7 @@ skids_router = APIRouter(prefix="/api/skids", tags=["skids"])
 
 @skids_router.get("/{skid_id}/inverters", response_model=InvertersListResponse)
 async def get_skid_inverters(
+    request: Request,
     skid_id: str = Path(..., description="Skid identifier", min_length=1),
     start_date: datetime = Query(
         ..., description="Start date for data retrieval (ISO format)"
@@ -290,7 +293,7 @@ async def get_skid_inverters(
     end_date: datetime = Query(
         ..., description="End date for data retrieval (ISO format)"
     ),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(get_current_user_skip_options),
 ):
     """
     Retrieve performance data for all inverters on a skid.
