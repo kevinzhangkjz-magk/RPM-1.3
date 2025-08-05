@@ -5,6 +5,7 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  NEXT_PUBLIC_API_URL = "https://rpm-13-production.up.railway.app"
 
 [[redirects]]
   from = "/portfolio/*"
