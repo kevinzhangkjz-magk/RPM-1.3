@@ -12,6 +12,7 @@ import { Scatter, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { sitesApi, sitesQueryKeys } from "../../../lib/api/sites";
 import { calculateRMSE, calculateRSquared } from "../../../lib/utils";
 
+
 export default function SiteAnalysisPage() {
   const params = useParams();
   const siteId = params.siteId as string;
