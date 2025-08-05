@@ -55,8 +55,7 @@ async def list_sites(current_user: str = Depends(get_current_user)):
         repo = SitesRepository()
 
         # Get all sites from database
-        sites_result = await repo.get_all_sites()
-        sites_data = sites_result.get("sites", [])
+        sites_data = repo.get_all_sites()
 
         # Convert to Pydantic models
         sites = [SiteDetails(**site) for site in sites_data]

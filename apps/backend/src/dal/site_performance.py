@@ -1,7 +1,6 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
-import asyncio
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,38 +15,6 @@ class SitePerformanceRepository:
 
     def __init__(self):
         self.db_connection = get_database_connection()
-    
-    async def get_site_performance(self, site_id: str, start_date: str, end_date: str) -> Dict[str, Any]:
-        """
-        Async method to retrieve performance data for a site.
-        
-        Args:
-            site_id: The site identifier
-            start_date: Start date as ISO string
-            end_date: End date as ISO string
-            
-        Returns:
-            Dictionary with data_points list
-        """
-        try:
-            # Convert string dates to datetime
-            from datetime import datetime as dt
-            start_dt = dt.fromisoformat(start_date.replace('Z', '+00:00'))
-            end_dt = dt.fromisoformat(end_date.replace('Z', '+00:00'))
-            
-            # Run synchronous method in executor
-            loop = asyncio.get_event_loop()
-            data = await loop.run_in_executor(
-                None, 
-                self.get_site_performance_data,
-                site_id, start_dt, end_dt
-            )
-            
-            return {"data_points": data}
-            
-        except Exception as e:
-            logger.error(f"Error getting performance data for site {site_id}: {str(e)}")
-            return {"data_points": []}
 
     def get_site_performance_data(
         self, site_id: str, start_date: datetime, end_date: datetime

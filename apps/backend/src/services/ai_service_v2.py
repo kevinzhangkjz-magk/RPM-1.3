@@ -65,14 +65,9 @@ class AIServiceV2:
             
         except Exception as e:
             # Fallback to error response
-            import traceback
-            print(f"ERROR in process_query: {str(e)}")
-            print(f"Traceback: {traceback.format_exc()}")
             return {
                 "summary": f"I encountered an error processing your query: {str(e)}. Please try rephrasing your question.",
-                "data": None,
-                "chart_type": None,
-                "columns": None
+                "data": None
             }
     
     async def _analyze_query_with_ai(self, query: str) -> Dict[str, Any]:
@@ -146,11 +141,11 @@ Respond with JSON containing:
         data_context = {}
         data_needed = analysis.get("data_needed", [])
         site_names = analysis.get("site_names")
-        time_range = analysis.get("time_range") or {"days": 30}
+        time_range = analysis.get("time_range", {"days": 30})
         
         # Calculate time range
         end_date = datetime.now()
-        days = time_range.get("days", 30) if time_range else 30
+        days = time_range.get("days", 30)
         start_date = end_date - timedelta(days=days)
         
         try:
@@ -166,24 +161,18 @@ Respond with JSON containing:
                     # Get all sites
                     all_sites = await self.sites_repo.get_all_sites()
                     data_context["sites"] = all_sites.get("sites", [])[:10]  # Limit to 10 for performance
-                    print(f"DEBUG: Fetched {len(data_context.get('sites', []))} sites from database")
             
-            # Fetch performance data - SIMPLIFIED FOR NOW
+            # Fetch performance data
             if "performance" in data_needed and data_context.get("sites"):
                 data_context["performance"] = {}
-                # For now, skip detailed performance queries as they're too slow
-                # Just use site metadata to generate insights
                 for site in data_context["sites"][:5]:  # Limit to 5 sites for performance
                     site_id = site.get("site_id")
                     if site_id:
-                        # Mock performance data based on site metadata
-                        data_context["performance"][site_id] = [{
-                            "site_id": site_id,
-                            "site_name": site.get("site_name"),
-                            "capacity_kw": site.get("capacity_kw", 0),
-                            "status": site.get("connectivity_status", "unknown"),
-                            "performance_ratio": 0.85 if site.get("connectivity_status") == "connected" else 0.0
-                        }]
+                        perf_data = await self.performance_repo.get_site_performance(
+                            site_id, start_date.isoformat(), end_date.isoformat()
+                        )
+                        if perf_data and perf_data.get("data_points"):
+                            data_context["performance"][site_id] = perf_data["data_points"]
             
             # Fetch skids data
             if "skids" in data_needed and data_context.get("sites"):
@@ -303,15 +292,10 @@ Please analyze this data and provide insights to answer the user's question.
         # Sites summary
         if "sites" in data_context and data_context["sites"]:
             sites = data_context["sites"]
-            site_details = []
-            for site in sites[:10]:
-                site_id = site.get("site_id", "Unknown")
-                site_name = site.get("site_name", "Unknown")
-                capacity = site.get("capacity_kw", 0)
-                status = site.get("connectivity_status", "unknown")
-                site_details.append(f"{site_name} ({site_id}): {capacity:.0f} kW, status={status}")
-            summary_parts.append(f"Sites data retrieved: {len(sites)} total")
-            summary_parts.extend(site_details)
+            site_names = [site.get("site_name", "Unknown") for site in sites]
+            summary_parts.append(f"Sites available: {', '.join(site_names[:5])}")
+            if len(sites) > 5:
+                summary_parts.append(f"(and {len(sites) - 5} more)")
         
         # Performance data summary
         if "performance" in data_context:

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, validator
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List
 from ..services.ai_service_v2 import AIServiceV2
 
 router = APIRouter(prefix="/api", tags=["AI Assistant"])
@@ -18,7 +18,7 @@ class QueryRequest(BaseModel):
 
 class QueryResponse(BaseModel):
     summary: str
-    data: Optional[Union[Dict[str, Any], List[Any]]] = None
+    data: Optional[Dict[str, Any]] = None
     chart_type: Optional[str] = None
     columns: Optional[List[str]] = None
 

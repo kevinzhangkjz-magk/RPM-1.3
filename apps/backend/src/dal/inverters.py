@@ -1,7 +1,6 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
-import asyncio
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -15,15 +14,6 @@ class InvertersRepository:
 
     def __init__(self):
         self.db_connection = get_database_connection()
-    
-    async def get_site_inverters(self, site_id: str, start_date: str, end_date: str) -> Dict[str, Any]:
-        """Async method to get inverters data for a site."""
-        try:
-            # For now, return empty data as inverters table might not exist
-            return {"inverters": []}
-        except Exception as e:
-            logger.error(f"Error getting inverters data: {str(e)}")
-            return {"inverters": []}
 
     def get_inverters_performance_data(
         self, skid_id: str, start_date: datetime, end_date: datetime
