@@ -29,7 +29,7 @@ class ApiClient {
     this.baseUrl = baseUrl;
     // For demo purposes, using hardcoded credentials
     // In production, this should come from secure authentication
-    this.credentials = btoa("testuser:testpass");
+    this.credentials = btoa("username:password");
     
     // Debug logging for troubleshooting
     if (typeof window !== 'undefined') {
