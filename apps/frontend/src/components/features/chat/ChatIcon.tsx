@@ -1,7 +1,7 @@
 'use client';
 
 import { MessageCircle } from 'lucide-react';
-import { useChatStore } from '../../../lib/stores/chatStore';
+import { useChatStore } from '@/lib/stores/chatStore';
 import { Button } from '@/components/ui/button';
 
 export function ChatIcon() {

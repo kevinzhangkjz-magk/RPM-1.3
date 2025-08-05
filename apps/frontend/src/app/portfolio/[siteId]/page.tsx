@@ -9,8 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
 import { ArrowLeft, TrendingUp, BarChart3 } from "lucide-react";
 import { Scatter, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, BarChart, Bar, Cell } from "recharts";
-import { sitesApi, sitesQueryKeys } from "../../../lib/api/sites";
-import { calculateRMSE, calculateRSquared } from "../../../lib/utils";
+import { sitesApi, sitesQueryKeys } from "@/lib/api/sites";
+import { calculateRMSE, calculateRSquared } from "@/lib/utils";
 
 export default function SiteAnalysisPage() {
   const params = useParams();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { sitesApi, sitesQueryKeys } from "../../lib/api/sites";
+import { sitesApi, sitesQueryKeys } from "@/lib/api/sites";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowRight, MapPin, Zap, Calendar, AlertCircle } from "lucide-react";
