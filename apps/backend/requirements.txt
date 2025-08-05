@@ -1,15 +1,27 @@
+# Core dependencies
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
 python-multipart>=0.0.6
-mangum>=0.17.0
-psycopg2-binary>=2.9.0
+
+# Database
 sqlalchemy>=2.0.0
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-httpx>=0.25.0
+asyncpg>=0.27.0
+psycopg2-binary>=2.9.0
+redshift-connector>=2.0.0
+
+# Additional dependencies found in code
+numpy>=1.24.0
 openai>=1.0.0
-black>=23.0.0
-ruff>=0.1.0
-mypy>=1.5.0
+
+# HTTP client
+httpx>=0.25.0
+
+# AWS Lambda handler
+mangum>=0.17.0
+
+# Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-dotenv>=1.0.0

@@ -1,0 +1,23 @@
+# Ignore unnecessary files for deployment
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+ENV/
+.pytest_cache/
+.ruff_cache/
+.turbo/
+tests/
+*.log
+.env
+.env.local
+*.db
+*.sqlite
+*.sqlite3
+package.json.backup
+RAILWAY_DEPLOYMENT.md
+backend_new.log

@@ -1,7 +1,24 @@
 import { SitesResponse, SitePerformanceResponse, SkidsResponse, ApiError } from "@/types/site";
 import { AIQueryRequest, AIQueryResponse } from "@/types/chat";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Runtime API URL detection for Netlify deployment
+const getApiBaseUrl = () => {
+  // Check if we're in the browser
+  if (typeof window !== 'undefined') {
+    // Production Netlify deployment
+    if (window.location.hostname === 'frabjous-cuchufli-daaafb.netlify.app') {
+      return 'https://rpm-13-production-ca68.up.railway.app';
+    }
+    // Any other Netlify preview deployment
+    if (window.location.hostname.includes('netlify.app')) {
+      return 'https://rpm-13-production-ca68.up.railway.app';
+    }
+  }
+  // Use environment variable or fallback to localhost
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 
 class ApiClient {
@@ -13,6 +30,15 @@ class ApiClient {
     // For demo purposes, using hardcoded credentials
     // In production, this should come from secure authentication
     this.credentials = btoa("testuser:testpass");
+    
+    // Debug logging for troubleshooting
+    if (typeof window !== 'undefined') {
+      console.log('[API Client] Initialized with:', {
+        baseUrl: this.baseUrl,
+        hostname: window.location.hostname,
+        env: process.env.NODE_ENV
+      });
+    }
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -27,6 +53,8 @@ class ApiClient {
       ...options,
     };
 
+    console.log(`[API] Fetching: ${url}`);
+    
     try {
       const response = await fetch(url, config);
       
@@ -166,7 +194,18 @@ class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient(API_BASE_URL);
+// Create API client with runtime URL detection
+let apiClient: ApiClient;
+
+if (typeof window !== 'undefined') {
+  // Browser environment - use runtime detection
+  apiClient = new ApiClient(getApiBaseUrl());
+} else {
+  // Server/build time - use environment variable
+  apiClient = new ApiClient(API_BASE_URL);
+}
+
+export { apiClient };
 
 // React Query hooks
 export const sitesQueryKeys = {
