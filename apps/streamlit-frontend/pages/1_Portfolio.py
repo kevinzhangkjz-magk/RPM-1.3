@@ -145,32 +145,26 @@ try:
     with col1:
         st.metric(
             "Total Sites",
-            f"{total_sites}",
-            f"{connected_sites} connected"
+            f"{total_sites}"
         )
     
     with col2:
         # Show total capacity in MW
         st.metric(
             "Total Capacity",
-            f"{total_capacity_kw:.0f} MW",
-            "+100 MW this month"
+            f"{total_capacity_kw:.0f} MW"
         )
     
     with col3:
         st.metric(
             "Avg Performance",
-            f"{avg_performance}%",
-            "+2.3%",
-            delta_color="normal"
+            f"{avg_performance}%"
         )
     
     with col4:
         st.metric(
             "Active Alerts",
-            "3",
-            "-2 from yesterday",
-            delta_color="inverse"
+            "3"
         )
     
     # Performance chart

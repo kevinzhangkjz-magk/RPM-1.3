@@ -194,6 +194,12 @@ class SitePerformanceResponse(BaseModel):
         ..., description="List of performance data points"
     )
     summary: Optional["SiteDataSummary"] = Field(None, description="Summary statistics")
+    data_fallback: bool = Field(
+        False, description="Indicates if previous month's data was used as fallback"
+    )
+    data_month: Optional[str] = Field(
+        None, description="Month/Year of the data being displayed (e.g., '2025-08')"
+    )
 
 
 class SiteDataSummary(BaseModel):

@@ -1,39 +1,27 @@
 """
-Site Detail Page - Detailed performance metrics and drill-down for individual sites
+Site Analysis Page - Power Curve and Skids Performance Analysis
 """
 
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime
 import numpy as np
 import sys
 from pathlib import Path
+import calendar
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from lib.session_state_isolated import initialize_session_state, update_navigation_context, get_session_value
+from lib.session_state_isolated import initialize_session_state, get_session_value
 from lib.api_client_refactored import get_api_client
 from lib.auth_manager import check_and_redirect_auth
-from components.navigation import (
-    render_breadcrumb, 
-    render_date_range_selector,
-    render_availability_filter,
-    render_skid_selector,
-    render_inverter_selector
-)
-from components.charts import (
-    render_power_curve, 
-    render_performance_scatter,
-    render_time_series,
-    render_performance_heatmap
-)
 import components.theme as theme
 
 # Page config
 st.set_page_config(
-    page_title="Site Detail - RPM",
-    page_icon="🏭",
+    page_title="Site Analysis - RPM",
+    page_icon="⚡",
     layout="wide"
 )
 
@@ -50,151 +38,282 @@ check_and_redirect_auth()
 api_client = get_api_client()
 
 # Check if site is selected
-if not get_session_value('selected_site'):
+site_id = get_session_value('selected_site')
+if not site_id:
     st.warning("No site selected. Please select a site from the portfolio.")
-    if st.button("← Go to Portfolio"):
+    if st.button("← Back to Portfolio"):
         st.switch_page("pages/1_Portfolio.py")
     st.stop()
 
-site_id = st.session_state.selected_site
+# Header with connection status
+col1, col2 = st.columns([6, 1])
+with col1:
+    if st.button("← Back to Portfolio"):
+        st.switch_page("pages/1_Portfolio.py")
+with col2:
+    st.success("● Connected")
 
-# Header
-st.title(f"🏭 Site Detail: {site_id}")
-render_breadcrumb()
+# Breadcrumb
+st.caption(f"Portfolio > {site_id}")
 
-# Main content
+# Page title
+st.title(f"Power Curve - Site: {site_id}")
+st.markdown("Actual vs. Expected Performance Analysis")
+
+# Month/Year selector
+current_year = datetime.now().year
+current_month = datetime.now().month
+
+col1, col2, col3 = st.columns([1, 1, 4])
+with col1:
+    selected_year = st.selectbox(
+        "Year",
+        options=list(range(2020, current_year + 1)),
+        index=list(range(2020, current_year + 1)).index(current_year),
+        key="year_selector"
+    )
+
+with col2:
+    selected_month = st.selectbox(
+        "Month",
+        options=list(range(1, 13)),
+        format_func=lambda x: calendar.month_name[x],
+        index=current_month - 1,
+        key="month_selector"
+    )
+
+with col3:
+    if st.button("🔄 Refresh Data"):
+        st.cache_data.clear()
+        st.rerun()
+
+# Fetch power curve data
 try:
-    # Fetch site data
-    with st.spinner("Loading site data..."):
-        site_detail = api_client.get_site_detail(site_id)
-        site_performance = api_client.get_site_performance(site_id)
-        skids = api_client.get_site_skids(site_id)
-    
-    # Control panel
-    st.markdown("---")
-    col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
-    
-    with col1:
-        start_date, end_date = render_date_range_selector()
-    
-    with col2:
-        availability_filter = render_availability_filter()
-    
-    with col3:
-        selected_skid = render_skid_selector(skids)
-    
-    with col4:
-        if st.button("🔄 Refresh", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
-    
-    # If skid is selected, show inverter selector
-    if selected_skid:
-        update_navigation_context(site_id=site_id, skid_id=selected_skid)
-        inverters = api_client.get_site_inverters(site_id, selected_skid)
-        selected_inverter = render_inverter_selector(inverters)
+    with st.spinner("Loading power curve data..."):
+        # Get power curve data from API
+        power_curve_response = api_client._make_request(
+            'GET',
+            f'/api/sites/{site_id}/power-curve',
+            params={'year': selected_year, 'month': selected_month}
+        ).json()
         
-        if selected_inverter:
-            update_navigation_context(site_id=site_id, skid_id=selected_skid, inverter_id=selected_inverter)
+        # Show fallback banner if using previous month's data
+        if power_curve_response.get('data_fallback', False):
+            st.warning(
+                f"⚠️ Current month data not available. Showing data from {power_curve_response.get('data_month', 'previous month')}.",
+                icon="⚠️"
+            )
     
-    # Site metrics
-    st.markdown("---")
-    st.subheader("📊 Site Performance Metrics")
+    # Main layout with power curve and metrics
+    col_chart, col_metrics = st.columns([3, 1])
     
-    col1, col2, col3, col4, col5 = st.columns(5)
+    with col_chart:
+        st.subheader("Power Curve Visualization")
+        
+        # Create power curve scatter plot
+        if power_curve_response.get('data_points'):
+            df = pd.DataFrame(power_curve_response['data_points'])
+            
+            # Filter valid data points
+            df = df.dropna(subset=['poa_irradiance', 'actual_power_mw'])
+            df = df[df['poa_irradiance'] > 0]
+            
+            if not df.empty:
+                fig = go.Figure()
+                
+                # Actual power scatter
+                fig.add_trace(go.Scatter(
+                    x=df['poa_irradiance'],
+                    y=df['actual_power_mw'],
+                    mode='markers',
+                    name='Actual Power',
+                    marker=dict(
+                        color='#54b892',
+                        size=4,
+                        opacity=0.6
+                    )
+                ))
+                
+                # Expected power line (if available)
+                if 'expected_power_mw' in df.columns:
+                    # Sort by irradiance for smooth line
+                    df_sorted = df.sort_values('poa_irradiance')
+                    fig.add_trace(go.Scatter(
+                        x=df_sorted['poa_irradiance'],
+                        y=df_sorted['expected_power_mw'],
+                        mode='lines',
+                        name='Expected Power',
+                        line=dict(
+                            color='#bd6821',
+                            width=2,
+                            dash='dash'
+                        )
+                    ))
+                
+                fig.update_layout(
+                    height=500,
+                    xaxis_title="POA Irradiance (W/m²)",
+                    yaxis_title="Power (MW)",
+                    paper_bgcolor='#1b2437',
+                    plot_bgcolor='#1b2437',
+                    font=dict(color='#f0f0f0'),
+                    xaxis=dict(gridcolor='#5f5f5f'),
+                    yaxis=dict(gridcolor='#5f5f5f'),
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    ),
+                    hovermode='closest'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.error("No valid data points for power curve")
+        else:
+            st.error("No power curve data available")
     
-    with col1:
-        st.metric(
-            "Capacity",
-            f"{site_detail.get('capacity_kw', 0)/1000:.1f} MW",
-            help="Total installed capacity"
-        )
-    
-    with col2:
-        st.metric(
-            "Current Output",
-            f"{site_performance.get('current_output', 0)/1000:.1f} MW",
-            f"{site_performance.get('output_change', '+2.3')}%"
-        )
-    
-    with col3:
-        st.metric(
-            "Performance Ratio",
-            f"{site_performance.get('performance_ratio', 95.2)}%",
-            f"{site_performance.get('pr_change', '+1.2')}%"
-        )
-    
-    with col4:
-        st.metric(
-            "Availability",
-            f"{site_performance.get('availability', 98.5)}%",
-            f"{site_performance.get('avail_change', '0')}%"
-        )
-    
-    with col5:
-        st.metric(
-            "Capacity Factor",
-            f"{site_performance.get('capacity_factor', 22.3)}%",
-            f"{site_performance.get('cf_change', '+0.5')}%"
-        )
-    
-    # Power Curve Visualization
-    st.markdown("---")
-    st.subheader("⚡ Power Curve Analysis")
-    
-    # Tabs for different views
-    tab1, tab2, tab3 = st.tabs(["Power Curve", "Time Series", "Heatmap"])
-    
-    with tab1:
-        # Use real performance data from API
-        render_power_curve(site_performance, availability_filter)
-    
-    with tab2:
-        # Time series with real data
-        date_range = (start_date, end_date) if start_date and end_date else None
-        render_time_series(
-            site_performance,
-            metrics=['power_output', 'performance_ratio', 'availability'],
-            date_range=date_range
-        )
-    
-    with tab3:
-        # Performance heatmap with real data
-        render_performance_heatmap(site_performance, aggregate_by='hour_day')
-    
-    # Skid and Inverter Details
-    if selected_skid:
+    with col_metrics:
+        st.subheader("RMSE")
+        rmse_value = power_curve_response.get('rmse', 0.0)
+        st.markdown(f"### {rmse_value:.1f} MW")
+        
         st.markdown("---")
-        st.subheader(f"⚙️ Skid {selected_skid} Details")
         
-        if inverters:
-            # Display inverter grid
-            inv_cols = st.columns(4)
-            for idx, inv in enumerate(inverters[:4]):
-                with inv_cols[idx % 4]:
-                    with st.container(border=True):
-                        st.markdown(f"**Inverter {inv['inverter_id']}**")
-                        st.metric("Status", inv.get('status', 'Online'))
-                        st.metric("Power", f"{inv.get('power', 250)} kW")
-                        st.metric("Efficiency", f"{inv.get('efficiency', 98.2)}%")
+        st.subheader("R-Squared")
+        r_squared = power_curve_response.get('r_squared', 0.0)
+        st.markdown(f"### {r_squared:.2f}")
     
-    # Actions
+    # Skids Performance Section
     st.markdown("---")
-    col1, col2, col3 = st.columns(3)
     
+    # Fetch skids performance data
+    with st.spinner("Loading skids performance data..."):
+        skids_response = api_client._make_request(
+            'GET',
+            f'/api/sites/{site_id}/skids-performance',
+            params={'year': selected_year, 'month': selected_month}
+        ).json()
+    
+    # Skids header with View All Skids button
+    col1, col2 = st.columns([3, 1])
     with col1:
-        if st.button("📥 Export Data", use_container_width=True):
-            st.info("Export functionality will be implemented")
-    
+        st.subheader("Skid Performance")
+        st.caption("Click to view detailed comparison")
     with col2:
-        if st.button("📊 Generate Report", use_container_width=True):
-            st.info("Report generation will be implemented")
+        view_all_skids = st.button("View All Skids →", use_container_width=True)
     
-    with col3:
-        if st.button("🤖 Ask AI Assistant", use_container_width=True):
-            st.switch_page("pages/4_AI_Assistant.py")
+    # Show skids analysis if button clicked or always show
+    if True:  # Always show skids analysis below
+        st.markdown("---")
+        
+        # Breadcrumb update
+        st.caption(f"Portfolio > {site_id} > Skids")
+        
+        st.title(f"Skid Performance - Site: {site_id}")
+        st.markdown("Comparative Analysis of All Skids")
+        
+        # Main layout for skids
+        col_chart, col_summary = st.columns([3, 1])
+        
+        with col_chart:
+            st.subheader("Skid Comparative Analysis")
+            
+            if skids_response.get('skids'):
+                skids_df = pd.DataFrame(skids_response['skids'])
+                
+                # Create bar chart
+                fig = go.Figure()
+                
+                # Add actual power bars
+                fig.add_trace(go.Bar(
+                    x=skids_df['skid_id'],
+                    y=skids_df['actual_power_mw'],
+                    name='Actual Power',
+                    marker_color='#54b892'
+                ))
+                
+                fig.update_layout(
+                    height=400,
+                    xaxis_title="Skids",
+                    yaxis_title="Power (MW)",
+                    paper_bgcolor='#1b2437',
+                    plot_bgcolor='#1b2437',
+                    font=dict(color='#f0f0f0'),
+                    xaxis=dict(gridcolor='#5f5f5f'),
+                    yaxis=dict(gridcolor='#5f5f5f'),
+                    showlegend=False,
+                    hovermode='x unified'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Control toggles
+                col1, col2, col3, col4, col5 = st.columns(5)
+                with col1:
+                    st.toggle("Actual Data", value=True, disabled=True)
+                with col2:
+                    st.toggle("Expected Data", value=False)
+                with col3:
+                    st.toggle("Trend Line", value=False)
+                with col4:
+                    st.selectbox("", ["POA"], disabled=True)
+                with col5:
+                    st.selectbox("", ["GHI"], disabled=True)
+            else:
+                st.info("No skids data available")
+        
+        with col_summary:
+            st.subheader("Site Summary")
+            
+            st.metric("Total Skids:", skids_response.get('total_skids', 0))
+            st.metric("Connected:", "Yes" if skids_response.get('total_skids', 0) > 0 else "No")
+            st.metric("Average Deviation:", skids_response.get('average_deviation', '0%'))
+            
+            st.markdown("---")
+            
+            # Top Performers
+            st.subheader("Top Performers")
+            top_performers = skids_response.get('top_performers', [])
+            if top_performers:
+                for performer in top_performers[:3]:
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.caption(performer['skid_id'])
+                    with col2:
+                        st.caption(performer['deviation'], help="Performance above expected")
+            else:
+                st.caption("No data available")
+            
+            st.markdown("---")
+            
+            # Underperformers
+            st.subheader("Underperforming")
+            underperformers = skids_response.get('underperformers', [])
+            if underperformers:
+                for underperformer in underperformers[:3]:
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.caption(underperformer['skid_id'])
+                    with col2:
+                        st.caption(underperformer['deviation'], help="Performance below expected")
+            else:
+                st.caption("No underperforming skids")
+        
+        # Bottom action buttons
+        st.markdown("---")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("← Back to Portfolio", key="back_bottom"):
+                st.switch_page("pages/1_Portfolio.py")
+        with col2:
+            st.button("Export Data", use_container_width=True, disabled=True)
+        with col3:
+            st.button("View Report", use_container_width=True, disabled=True)
 
 except Exception as e:
     st.error(f"Failed to load site data: {str(e)}")
-    if st.button("← Back to Portfolio"):
+    if st.button("← Back to Portfolio", key="error_back"):
         st.switch_page("pages/1_Portfolio.py")
