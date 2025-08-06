@@ -7,13 +7,24 @@ import streamlit as st
 from pathlib import Path
 import sys
 
-# Add project root to path
-sys.path.append(str(Path(__file__).parent))
+# Add project root to path - handle both local and Streamlit Cloud
+current_dir = Path(__file__).parent
+sys.path.insert(0, str(current_dir))
+# Also add absolute path for Streamlit Cloud
+sys.path.insert(0, str(current_dir.absolute()))
 
-from lib.session_state_isolated import initialize_session_state, get_session_value
-from lib.api_client_refactored import get_api_client
-from components.navigation import render_breadcrumb
-import components.theme as theme
+try:
+    from lib.session_state_isolated import initialize_session_state, get_session_value
+    from lib.api_client_refactored import get_api_client
+    from components.navigation import render_breadcrumb
+    import components.theme as theme
+except ImportError as e:
+    # Fallback for Streamlit Cloud if paths are different
+    import os
+    st.error(f"Import error: {e}")
+    st.error(f"Current working directory: {os.getcwd()}")
+    st.error(f"Python path: {sys.path}")
+    st.stop()
 
 # Page configuration
 st.set_page_config(

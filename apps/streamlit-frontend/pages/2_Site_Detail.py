@@ -11,7 +11,10 @@ import sys
 from pathlib import Path
 import calendar
 
-sys.path.append(str(Path(__file__).parent.parent))
+# Add parent directory to path for imports - handle both local and Streamlit Cloud
+parent_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(parent_dir))
+sys.path.insert(0, str(parent_dir.absolute()))
 
 from lib.session_state_isolated import initialize_session_state, get_session_value
 from lib.api_client_refactored import get_api_client
