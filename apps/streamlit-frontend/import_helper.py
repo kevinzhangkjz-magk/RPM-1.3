@@ -6,6 +6,7 @@ This module handles all the complex import logic in one place
 import sys
 import os
 from pathlib import Path
+import importlib.util
 
 # Get the current file's directory
 current_file = Path(__file__)
@@ -13,110 +14,50 @@ streamlit_frontend_dir = current_file.parent
 lib_dir = streamlit_frontend_dir / 'lib'
 components_dir = streamlit_frontend_dir / 'components'
 
-# Add all necessary paths to sys.path - ensure they're at the beginning
-if str(streamlit_frontend_dir) not in sys.path:
-    sys.path.insert(0, str(streamlit_frontend_dir))
-if str(lib_dir) not in sys.path:
-    sys.path.insert(0, str(lib_dir))
-if str(components_dir) not in sys.path:
-    sys.path.insert(0, str(components_dir))
-
-# Import all modules with proper error handling
-session_state_isolated = None
-api_client_refactored = None
-auth_manager = None
-security = None
-navigation = None
-theme = None
-
-# Try importing from lib directory first
-try:
-    from lib import session_state_isolated
-    from lib import api_client_refactored
-    from lib import auth_manager
-    from lib import security
-except ImportError as e1:
-    # Try direct import
+# Function to load module from file
+def load_module_from_file(module_name, file_path):
+    """Load a module directly from a file path"""
     try:
-        import session_state_isolated
-        import api_client_refactored
-        import auth_manager
-        import security
-    except ImportError as e2:
-        # Last resort: try to import from explicit path
-        import importlib.util
-        
-        # Load session_state_isolated
-        spec = importlib.util.spec_from_file_location(
-            "session_state_isolated", 
-            lib_dir / "session_state_isolated.py"
-        )
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
         if spec and spec.loader:
-            session_state_isolated = importlib.util.module_from_spec(spec)
-            sys.modules["session_state_isolated"] = session_state_isolated
-            spec.loader.exec_module(session_state_isolated)
-        
-        # Load api_client_refactored
-        spec = importlib.util.spec_from_file_location(
-            "api_client_refactored", 
-            lib_dir / "api_client_refactored.py"
-        )
-        if spec and spec.loader:
-            api_client_refactored = importlib.util.module_from_spec(spec)
-            sys.modules["api_client_refactored"] = api_client_refactored
-            spec.loader.exec_module(api_client_refactored)
-        
-        # Load auth_manager
-        spec = importlib.util.spec_from_file_location(
-            "auth_manager", 
-            lib_dir / "auth_manager.py"
-        )
-        if spec and spec.loader:
-            auth_manager = importlib.util.module_from_spec(spec)
-            sys.modules["auth_manager"] = auth_manager
-            spec.loader.exec_module(auth_manager)
-        
-        # Load security
-        spec = importlib.util.spec_from_file_location(
-            "security", 
-            lib_dir / "security.py"
-        )
-        if spec and spec.loader:
-            security = importlib.util.module_from_spec(spec)
-            sys.modules["security"] = security
-            spec.loader.exec_module(security)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            return module
+    except Exception as e:
+        print(f"Failed to load {module_name} from {file_path}: {e}")
+        return None
 
-# Try importing from components directory
-try:
-    from components import navigation
-    from components import theme
-except ImportError:
-    try:
-        import navigation
-        import theme
-    except ImportError:
-        # Last resort: try to import from explicit path
-        import importlib.util
-        
-        # Load navigation
-        spec = importlib.util.spec_from_file_location(
-            "navigation", 
-            components_dir / "navigation.py"
-        )
-        if spec and spec.loader:
-            navigation = importlib.util.module_from_spec(spec)
-            sys.modules["navigation"] = navigation
-            spec.loader.exec_module(navigation)
-        
-        # Load theme
-        spec = importlib.util.spec_from_file_location(
-            "theme", 
-            components_dir / "theme.py"
-        )
-        if spec and spec.loader:
-            theme = importlib.util.module_from_spec(spec)
-            sys.modules["theme"] = theme
-            spec.loader.exec_module(theme)
+# Load all required modules directly from files
+session_state_isolated = load_module_from_file(
+    "session_state_isolated", 
+    lib_dir / "session_state_isolated.py"
+)
+
+api_client_refactored = load_module_from_file(
+    "api_client_refactored", 
+    lib_dir / "api_client_refactored.py"
+)
+
+auth_manager = load_module_from_file(
+    "auth_manager", 
+    lib_dir / "auth_manager.py"
+)
+
+security = load_module_from_file(
+    "security", 
+    lib_dir / "security.py"
+)
+
+navigation = load_module_from_file(
+    "navigation", 
+    components_dir / "navigation.py"
+)
+
+theme = load_module_from_file(
+    "theme", 
+    components_dir / "theme.py"
+)
 
 # Export the commonly used functions with proper error handling
 if session_state_isolated:
