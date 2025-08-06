@@ -13,67 +13,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Add project root to path - handle both local and Streamlit Cloud
-import os
-current_dir = Path(__file__).parent
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Detect environment and set paths
-if os.path.exists('/mount/src/rpm-1.3/apps/streamlit-frontend'):
-    # Streamlit Cloud environment
-    BASE_PATH = '/mount/src/rpm-1.3/apps/streamlit-frontend'
-else:
-    # Local environment
-    BASE_PATH = str(current_dir.parent)
-
-# Add all necessary paths
-sys.path.insert(0, BASE_PATH)
-sys.path.insert(0, os.path.join(BASE_PATH, 'lib'))
-sys.path.insert(0, os.path.join(BASE_PATH, 'components'))
-
-# Import directly from the modules
-try:
-    # Try imports with lib/components prefix first
-    from lib.session_state_isolated import initialize_session_state, update_navigation_context, get_session_value, is_authenticated
-    from lib.api_client_refactored import get_api_client
-    from lib.security import input_sanitizer
-    from lib.auth_manager import check_and_redirect_auth
-    from components.navigation import render_breadcrumb
-    import components.theme as theme
-except ImportError as e1:
-    try:
-        # Try direct imports without lib/components prefix
-        import session_state_isolated
-        import api_client_refactored
-        import security
-        import auth_manager
-        import navigation
-        import theme
-        
-        # Create the expected functions/modules
-        initialize_session_state = session_state_isolated.initialize_session_state
-        update_navigation_context = session_state_isolated.update_navigation_context
-        get_session_value = session_state_isolated.get_session_value
-        is_authenticated = session_state_isolated.is_authenticated
-        get_api_client = api_client_refactored.get_api_client
-        input_sanitizer = security.input_sanitizer
-        check_and_redirect_auth = auth_manager.check_and_redirect_auth
-        render_breadcrumb = navigation.render_breadcrumb
-    except ImportError as e2:
-        # If all imports fail, show diagnostic information
-        st.error(f"Failed to import required modules!")
-        st.error(f"Current working directory: {os.getcwd()}")
-        st.error(f"BASE_PATH: {BASE_PATH}")
-        st.error(f"Python path: {sys.path[:5]}")
-        st.error(f"First error: {e1}")
-        st.error(f"Second error: {e2}")
-        
-        # Check if files exist
-        lib_path = os.path.join(BASE_PATH, 'lib')
-        if os.path.exists(lib_path):
-            st.error(f"Contents of lib directory: {os.listdir(lib_path)[:10]}")
-        else:
-            st.error(f"lib directory not found at: {lib_path}")
-        st.stop()
+# Import from helper
+from import_helper import (
+    initialize_session_state,
+    update_navigation_context,
+    get_session_value,
+    get_api_client,
+    input_sanitizer,
+    check_and_redirect_auth,
+    render_breadcrumb,
+    clear_session,
+    theme
+)
 
 from tenacity import RetryError
 import httpx
@@ -358,11 +312,6 @@ except RetryError as e:
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Go to Login", type="primary", use_container_width=True):
-                    try:
-                        from lib.session_state_isolated import clear_session
-                    except ImportError:
-                        import session_state_isolated
-                        clear_session = session_state_isolated.clear_session
                     clear_session()
                     st.switch_page("pages/0_Login.py")
             with col2:

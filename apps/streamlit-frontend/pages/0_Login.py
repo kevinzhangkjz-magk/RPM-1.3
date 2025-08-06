@@ -4,64 +4,32 @@ Login Page - Authentication for RPM Platform
 
 import streamlit as st
 import httpx
-from pathlib import Path
 import sys
-import os
+from pathlib import Path
 from datetime import datetime
 
-# Add project root to path - handle both local and Streamlit Cloud
-current_dir = Path(__file__).parent
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Detect environment and set paths
-if os.path.exists('/mount/src/rpm-1.3/apps/streamlit-frontend'):
-    # Streamlit Cloud environment
-    BASE_PATH = '/mount/src/rpm-1.3/apps/streamlit-frontend'
-else:
-    # Local environment
-    BASE_PATH = str(current_dir.parent)
+# Import from helper
+from import_helper import (
+    initialize_session_state,
+    get_api_client,
+    input_sanitizer,
+    is_authenticated,
+    theme
+)
 
-# Add all necessary paths
-sys.path.insert(0, BASE_PATH)
-sys.path.insert(0, os.path.join(BASE_PATH, 'lib'))
-sys.path.insert(0, os.path.join(BASE_PATH, 'components'))
-
-# Import directly from the modules
+# Import additional functions needed by this page
 try:
-    # Try imports with lib/components prefix first
-    from lib.session_state_isolated import initialize_session_state, set_authentication, is_authenticated
-    from lib.api_client_refactored import get_api_client
-    from lib.security import input_sanitizer
-    import components.theme as theme
-except ImportError as e1:
-    try:
-        # Try direct imports without lib/components prefix
-        import session_state_isolated
-        import api_client_refactored
-        import security
-        import theme
-        
-        # Create the expected functions/modules
-        initialize_session_state = session_state_isolated.initialize_session_state
-        set_authentication = session_state_isolated.set_authentication
-        is_authenticated = session_state_isolated.is_authenticated
-        get_api_client = api_client_refactored.get_api_client
-        input_sanitizer = security.input_sanitizer
-    except ImportError as e2:
-        # If all imports fail, show diagnostic information
-        st.error(f"Failed to import required modules!")
-        st.error(f"Current working directory: {os.getcwd()}")
-        st.error(f"BASE_PATH: {BASE_PATH}")
-        st.error(f"Python path: {sys.path[:5]}")
-        st.error(f"First error: {e1}")
-        st.error(f"Second error: {e2}")
-        
-        # Check if files exist
-        lib_path = os.path.join(BASE_PATH, 'lib')
-        if os.path.exists(lib_path):
-            st.error(f"Contents of lib directory: {os.listdir(lib_path)[:10]}")
-        else:
-            st.error(f"lib directory not found at: {lib_path}")
-        st.stop()
+    from import_helper import set_authenticated, clear_session
+except ImportError:
+    # Fallback imports for functions not in helper
+    from lib.session_state_isolated import set_authentication as set_authenticated, clear_session
+except ImportError:
+    import session_state_isolated
+    set_authenticated = session_state_isolated.set_authentication
+    clear_session = session_state_isolated.clear_session
 
 # Page config
 st.set_page_config(
@@ -82,11 +50,6 @@ if is_authenticated():
     if st.button("Go to Portfolio", type="primary"):
         st.switch_page("pages/1_Portfolio.py")
     if st.button("Logout"):
-        try:
-            from lib.session_state_isolated import clear_session
-        except ImportError:
-            import session_state_isolated
-            clear_session = session_state_isolated.clear_session
         clear_session()
         st.rerun()
     st.stop()
@@ -128,7 +91,7 @@ if submitted:
             permissions = set(auth_response.get("permissions", []))
             
             # Set authentication in session
-            set_authentication(token, user_id, permissions)
+            set_authenticated(token, user_id, permissions)
             
             # Update API client with token
             api_client.set_auth_token(token)
