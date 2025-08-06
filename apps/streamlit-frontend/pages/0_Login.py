@@ -12,24 +12,28 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import from helper
-from import_helper import (
-    initialize_session_state,
-    get_api_client,
-    input_sanitizer,
-    is_authenticated,
-    theme
-)
-
-# Import additional functions needed by this page
 try:
-    from import_helper import set_authenticated, clear_session
+    from import_helper import (
+        initialize_session_state,
+        get_api_client,
+        input_sanitizer,
+        is_authenticated,
+        theme,
+        set_authenticated,
+        clear_session
+    )
 except ImportError:
-    # Fallback imports for functions not in helper
-    from lib.session_state_isolated import set_authentication as set_authenticated, clear_session
-except ImportError:
-    import session_state_isolated
-    set_authenticated = session_state_isolated.set_authentication
-    clear_session = session_state_isolated.clear_session
+    # Fallback: Add path and try again
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from import_helper import (
+        initialize_session_state,
+        get_api_client,
+        input_sanitizer,
+        is_authenticated,
+        theme,
+        set_authenticated,
+        clear_session
+    )
 
 # Page config
 st.set_page_config(

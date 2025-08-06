@@ -16,23 +16,48 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import from helper
-from import_helper import (
-    initialize_session_state,
-    add_chat_message,
-    get_session_value,
-    get_api_client,
-    check_and_redirect_auth,
-    input_sanitizer,
-    render_breadcrumb,
-    theme
-)
+try:
+    from import_helper import (
+        initialize_session_state,
+        add_chat_message,
+        get_session_value,
+        get_api_client,
+        check_and_redirect_auth,
+        input_sanitizer,
+        render_breadcrumb,
+        theme
+    )
+except ImportError:
+    # Fallback: Add path and try again
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from import_helper import (
+        initialize_session_state,
+        add_chat_message,
+        get_session_value,
+        get_api_client,
+        check_and_redirect_auth,
+        input_sanitizer,
+        render_breadcrumb,
+        theme
+    )
 
 # Import chart function directly (not in import_helper yet)
 try:
     from components.charts import render_performance_scatter
 except ImportError:
-    import charts
-    render_performance_scatter = charts.render_performance_scatter
+    try:
+        import charts
+        render_performance_scatter = charts.render_performance_scatter
+    except ImportError:
+        # Last resort: load directly from file
+        import importlib.util
+        charts_path = Path(__file__).parent.parent / 'components' / 'charts.py'
+        spec = importlib.util.spec_from_file_location("charts", charts_path)
+        if spec and spec.loader:
+            charts = importlib.util.module_from_spec(spec)
+            sys.modules["charts"] = charts
+            spec.loader.exec_module(charts)
+            render_performance_scatter = charts.render_performance_scatter
 
 # Page config
 st.set_page_config(

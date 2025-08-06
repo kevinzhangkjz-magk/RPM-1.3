@@ -15,13 +15,24 @@ import calendar
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import from helper
-from import_helper import (
-    initialize_session_state,
-    get_session_value,
-    get_api_client,
-    check_and_redirect_auth,
-    theme
-)
+try:
+    from import_helper import (
+        initialize_session_state,
+        get_session_value,
+        get_api_client,
+        check_and_redirect_auth,
+        theme
+    )
+except ImportError:
+    # Fallback: Add path and try again
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from import_helper import (
+        initialize_session_state,
+        get_session_value,
+        get_api_client,
+        check_and_redirect_auth,
+        theme
+    )
 
 # Page config
 st.set_page_config(

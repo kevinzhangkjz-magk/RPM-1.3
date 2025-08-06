@@ -17,17 +17,32 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import from helper
-from import_helper import (
-    initialize_session_state,
-    update_navigation_context,
-    get_session_value,
-    get_api_client,
-    input_sanitizer,
-    check_and_redirect_auth,
-    render_breadcrumb,
-    clear_session,
-    theme
-)
+try:
+    from import_helper import (
+        initialize_session_state,
+        update_navigation_context,
+        get_session_value,
+        get_api_client,
+        input_sanitizer,
+        check_and_redirect_auth,
+        render_breadcrumb,
+        clear_session,
+        theme
+    )
+except ImportError:
+    # Fallback: Add path and try again
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from import_helper import (
+        initialize_session_state,
+        update_navigation_context,
+        get_session_value,
+        get_api_client,
+        input_sanitizer,
+        check_and_redirect_auth,
+        render_breadcrumb,
+        clear_session,
+        theme
+    )
 
 from tenacity import RetryError
 import httpx

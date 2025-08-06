@@ -15,15 +15,28 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import from helper
-from import_helper import (
-    initialize_session_state,
-    get_session_value,
-    set_session_value,
-    get_api_client,
-    check_and_redirect_auth,
-    render_breadcrumb,
-    theme
-)
+try:
+    from import_helper import (
+        initialize_session_state,
+        get_session_value,
+        set_session_value,
+        get_api_client,
+        check_and_redirect_auth,
+        render_breadcrumb,
+        theme
+    )
+except ImportError:
+    # Fallback: Add path and try again
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from import_helper import (
+        initialize_session_state,
+        get_session_value,
+        set_session_value,
+        get_api_client,
+        check_and_redirect_auth,
+        render_breadcrumb,
+        theme
+    )
 
 # Import widget functions directly (these aren't in import_helper yet)
 try:
@@ -35,12 +48,27 @@ try:
         render_availability_tracker
     )
 except ImportError:
-    import widgets
-    render_performance_leaderboard = widgets.render_performance_leaderboard
-    render_active_alerts = widgets.render_active_alerts
-    render_power_curve_widget = widgets.render_power_curve_widget
-    render_quick_stats = widgets.render_quick_stats
-    render_availability_tracker = widgets.render_availability_tracker
+    try:
+        import widgets
+        render_performance_leaderboard = widgets.render_performance_leaderboard
+        render_active_alerts = widgets.render_active_alerts
+        render_power_curve_widget = widgets.render_power_curve_widget
+        render_quick_stats = widgets.render_quick_stats
+        render_availability_tracker = widgets.render_availability_tracker
+    except ImportError:
+        # Last resort: load directly from file
+        import importlib.util
+        widgets_path = Path(__file__).parent.parent / 'components' / 'widgets.py'
+        spec = importlib.util.spec_from_file_location("widgets", widgets_path)
+        if spec and spec.loader:
+            widgets = importlib.util.module_from_spec(spec)
+            sys.modules["widgets"] = widgets
+            spec.loader.exec_module(widgets)
+            render_performance_leaderboard = widgets.render_performance_leaderboard
+            render_active_alerts = widgets.render_active_alerts
+            render_power_curve_widget = widgets.render_power_curve_widget
+            render_quick_stats = widgets.render_quick_stats
+            render_availability_tracker = widgets.render_availability_tracker
 
 # Page config
 st.set_page_config(
