@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: rpm-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: REDSHIFT_HOST
+        value: data-analytics.crmjfkw9o04v.us-east-1.redshift.amazonaws.com
+      - key: REDSHIFT_PORT
+        value: 5439
+      - key: REDSHIFT_DATABASE
+        value: desri_analytics
+      - key: REDSHIFT_USER
+        value: chail
+      - key: REDSHIFT_PASSWORD
+        value: U2bqPmM88D2d
+      - key: REDSHIFT_SSL
+        value: true
+      - key: BASIC_AUTH_USERNAME
+        value: testuser
+      - key: BASIC_AUTH_PASSWORD
+        value: testpass
+      - key: AWS_REGION
+        value: us-east-1
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
