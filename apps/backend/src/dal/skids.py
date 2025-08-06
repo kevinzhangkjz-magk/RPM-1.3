@@ -179,25 +179,24 @@ class SkidsRepository:
         """
         table_name = f"dataanalytics.public.desri_{site_id}_{year}_{month:02d}"
         
-        # For simplicity, generate skid IDs based on common patterns
-        # In production, you'd query actual skid metadata
+        # Query REAL skid/PCS data from the device column
+        # Each device represents a skid/PCS unit (e.g., pcs_1_1, pcs_1_2, etc.)
         return f"""
         WITH skid_data AS (
             SELECT 
-                CASE 
-                    WHEN data.skid_id IS NOT NULL THEN data.skid_id
-                    ELSE 'pcs_' || (ROW_NUMBER() OVER (ORDER BY data.timestamp) % 48 + 1)::text
-                END as skid_id,
+                device as skid_id,
                 AVG(CASE 
-                    WHEN data."tag" = 'P' AND data.devicetype = 'rmt' 
-                    THEN data."value" 
+                    WHEN "tag" = 'P' AND devicetype = 'Inverter' 
+                    THEN "value" 
                 END) / 1000.0 as avg_power_mw
-            FROM {table_name} data
+            FROM {table_name}
             WHERE 
-                data."tag" = 'P' 
-                AND data.devicetype = 'rmt'
-                AND data."value" > 0
-            GROUP BY 1
+                "tag" = 'P' 
+                AND devicetype = 'Inverter'
+                AND "value" > 0
+                AND device IS NOT NULL
+                AND device LIKE 'pcs_%'
+            GROUP BY device
         )
         SELECT 
             skid_id,

@@ -257,15 +257,19 @@ class SitePerformanceRepository:
                 WHEN data."tag" = 'P' AND data.devicetype = 'rmt' 
                 THEN data."value" 
             END) / 1000.0 as actual_power_mw,
+            -- Expected power should come from actual expected/modeled data if available
+            -- For now, using a simple model based on irradiance
             SUM(CASE 
+                WHEN data."tag" = 'Pexpected' AND data.devicetype = 'rmt' 
+                THEN data."value"
                 WHEN data."tag" = 'P' AND data.devicetype = 'rmt' 
-                THEN data."value" * 0.85
+                THEN data."value" * 0.85  -- Fallback if no expected data
             END) / 1000.0 as expected_power_mw
         FROM {table_name} data
         WHERE 
             data."value" IS NOT NULL
             AND (
-                (data."tag" = 'P' AND data.devicetype = 'rmt' AND data."value" > 0)
+                (data."tag" IN ('P', 'Pexpected') AND data.devicetype = 'rmt' AND data."value" > 0)
                 OR 
                 (data."tag" = 'POA' AND data.devicetype = 'Met' AND data."value" > 10)
             )

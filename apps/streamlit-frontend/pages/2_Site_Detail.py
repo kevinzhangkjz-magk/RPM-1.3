@@ -249,19 +249,6 @@ try:
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
-                
-                # Control toggles
-                col1, col2, col3, col4, col5 = st.columns(5)
-                with col1:
-                    st.toggle("Actual Data", value=True, disabled=True)
-                with col2:
-                    st.toggle("Expected Data", value=False)
-                with col3:
-                    st.toggle("Trend Line", value=False)
-                with col4:
-                    st.selectbox("", ["POA"], disabled=True)
-                with col5:
-                    st.selectbox("", ["GHI"], disabled=True)
             else:
                 st.info("No skids data available")
         
@@ -270,35 +257,38 @@ try:
             
             st.metric("Total Skids:", skids_response.get('total_skids', 0))
             st.metric("Connected:", "Yes" if skids_response.get('total_skids', 0) > 0 else "No")
-            st.metric("Average Deviation:", skids_response.get('average_deviation', '0%'))
             
             st.markdown("---")
             
-            # Top Performers
+            # Top Performers (highest absolute power)
             st.subheader("Top Performers")
-            top_performers = skids_response.get('top_performers', [])
-            if top_performers:
-                for performer in top_performers[:3]:
+            skids_data = skids_response.get('skids', [])
+            if skids_data:
+                # Sort by actual power MW descending
+                sorted_by_power = sorted(skids_data, key=lambda x: x.get('actual_power_mw', 0), reverse=True)
+                for skid in sorted_by_power[:3]:
                     col1, col2 = st.columns([2, 1])
                     with col1:
-                        st.caption(performer['skid_id'])
+                        st.caption(skid['skid_id'])
                     with col2:
-                        st.caption(performer['deviation'], help="Performance above expected")
+                        st.caption(f"{skid.get('actual_power_mw', 0):.2f} MW")
             else:
                 st.caption("No data available")
             
             st.markdown("---")
             
-            # Underperformers
-            st.subheader("Underperforming")
-            underperformers = skids_response.get('underperformers', [])
-            if underperformers:
-                for underperformer in underperformers[:3]:
+            # Under Performers (lowest absolute power)
+            st.subheader("Under Performers")
+            skids_data = skids_response.get('skids', [])
+            if skids_data:
+                # Sort by actual power MW ascending (lowest first)
+                sorted_by_power = sorted(skids_data, key=lambda x: x.get('actual_power_mw', 0))
+                for skid in sorted_by_power[:3]:
                     col1, col2 = st.columns([2, 1])
                     with col1:
-                        st.caption(underperformer['skid_id'])
+                        st.caption(skid['skid_id'])
                     with col2:
-                        st.caption(underperformer['deviation'], help="Performance below expected")
+                        st.caption(f"{skid.get('actual_power_mw', 0):.2f} MW")
             else:
                 st.caption("No underperforming skids")
         
