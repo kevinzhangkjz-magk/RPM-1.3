@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 parent_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(parent_dir))
 sys.path.insert(0, str(parent_dir.absolute()))
+# For Streamlit Cloud - add the explicit path
+sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend')
 
 from lib.session_state_isolated import initialize_session_state, update_navigation_context, get_session_value, is_authenticated
 from lib.api_client_refactored import get_api_client
