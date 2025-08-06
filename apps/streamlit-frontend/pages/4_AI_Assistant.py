@@ -12,24 +12,53 @@ import json
 import sys
 from pathlib import Path
 
-# Add parent directory to path for imports - handle both local and Streamlit Cloud
-parent_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(parent_dir))
-sys.path.insert(0, str(parent_dir.absolute()))
-# For Streamlit Cloud - add the explicit path
-sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend')
+# Add project root to path - handle both local and Streamlit Cloud
+import os
+current_dir = Path(__file__).parent
 
-from lib.session_state_isolated import (
-    initialize_session_state,
-    add_chat_message,
-    get_session_value
-)
-from lib.api_client_refactored import get_api_client
-from lib.auth_manager import check_and_redirect_auth
-from lib.security import input_sanitizer
-from components.navigation import render_breadcrumb
-from components.charts import render_performance_scatter
-import components.theme as theme
+# Try multiple approaches to ensure imports work
+if os.path.exists('/mount/src/rpm-1.3/apps/streamlit-frontend'):
+    # Streamlit Cloud environment
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend')
+    # Also try adding lib and components directly
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend/lib')
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend/components')
+else:
+    # Local environment
+    parent_dir = current_dir.parent
+    sys.path.insert(0, str(parent_dir))
+    sys.path.insert(0, str(parent_dir.absolute()))
+
+# Import with explicit module paths as fallback
+try:
+    from lib.session_state_isolated import (
+        initialize_session_state,
+        add_chat_message,
+        get_session_value
+    )
+    from lib.api_client_refactored import get_api_client
+    from lib.auth_manager import check_and_redirect_auth
+    from lib.security import input_sanitizer
+    from components.navigation import render_breadcrumb
+    from components.charts import render_performance_scatter
+    import components.theme as theme
+except ImportError:
+    # Try direct imports if lib is not recognized as a package
+    import session_state_isolated
+    import api_client_refactored
+    import auth_manager
+    import security
+    from navigation import render_breadcrumb
+    from charts import render_performance_scatter
+    import theme
+    
+    # Reassign for consistency
+    initialize_session_state = session_state_isolated.initialize_session_state
+    add_chat_message = session_state_isolated.add_chat_message
+    get_session_value = session_state_isolated.get_session_value
+    get_api_client = api_client_refactored.get_api_client
+    check_and_redirect_auth = auth_manager.check_and_redirect_auth
+    input_sanitizer = security.input_sanitizer
 
 # Page config
 st.set_page_config(
@@ -80,7 +109,9 @@ with st.sidebar:
     st.markdown("---")
     
     if st.button("🗑️ Clear Chat History", use_container_width=True):
-        clear_chat_history()
+        # Clear chat history from session state
+        if 'chat_history' in st.session_state:
+            st.session_state.chat_history = []
         st.rerun()
     
     st.markdown("---")

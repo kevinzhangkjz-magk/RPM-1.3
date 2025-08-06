@@ -13,21 +13,51 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Add parent directory to path for imports - handle both local and Streamlit Cloud
-parent_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(parent_dir))
-sys.path.insert(0, str(parent_dir.absolute()))
-# For Streamlit Cloud - add the explicit path
-sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend')
+# Add project root to path - handle both local and Streamlit Cloud
+import os
+current_dir = Path(__file__).parent
 
-from lib.session_state_isolated import initialize_session_state, update_navigation_context, get_session_value, is_authenticated
-from lib.api_client_refactored import get_api_client
-from lib.security import input_sanitizer
-from lib.auth_manager import check_and_redirect_auth
+# Try multiple approaches to ensure imports work
+if os.path.exists('/mount/src/rpm-1.3/apps/streamlit-frontend'):
+    # Streamlit Cloud environment
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend')
+    # Also try adding lib and components directly
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend/lib')
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend/components')
+else:
+    # Local environment
+    parent_dir = current_dir.parent
+    sys.path.insert(0, str(parent_dir))
+    sys.path.insert(0, str(parent_dir.absolute()))
+
+# Import with explicit module paths as fallback
+try:
+    from lib.session_state_isolated import initialize_session_state, update_navigation_context, get_session_value, is_authenticated
+    from lib.api_client_refactored import get_api_client
+    from lib.security import input_sanitizer
+    from lib.auth_manager import check_and_redirect_auth
+    from components.navigation import render_breadcrumb
+    import components.theme as theme
+except ImportError:
+    # Try direct imports if lib is not recognized as a package
+    import session_state_isolated
+    import api_client_refactored
+    import security
+    import auth_manager
+    from navigation import render_breadcrumb
+    import theme
+    
+    # Reassign for consistency
+    initialize_session_state = session_state_isolated.initialize_session_state
+    update_navigation_context = session_state_isolated.update_navigation_context
+    get_session_value = session_state_isolated.get_session_value
+    is_authenticated = session_state_isolated.is_authenticated
+    get_api_client = api_client_refactored.get_api_client
+    input_sanitizer = security.input_sanitizer
+    check_and_redirect_auth = auth_manager.check_and_redirect_auth
+
 from tenacity import RetryError
 import httpx
-from components.navigation import render_breadcrumb
-import components.theme as theme
 
 # Page config
 st.set_page_config(
@@ -309,7 +339,11 @@ except RetryError as e:
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Go to Login", type="primary", use_container_width=True):
-                    from lib.session_state_isolated import clear_session
+                    try:
+                        from lib.session_state_isolated import clear_session
+                    except ImportError:
+                        import session_state_isolated
+                        clear_session = session_state_isolated.clear_session
                     clear_session()
                     st.switch_page("pages/0_Login.py")
             with col2:

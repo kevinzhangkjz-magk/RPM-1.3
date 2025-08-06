@@ -9,17 +9,41 @@ import sys
 import os
 from datetime import datetime
 
-# Add parent directory to path for imports - handle both local and Streamlit Cloud
-parent_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(parent_dir))
-sys.path.insert(0, str(parent_dir.absolute()))
-# For Streamlit Cloud - add the explicit path
-sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend')
+# Add project root to path - handle both local and Streamlit Cloud
+current_dir = Path(__file__).parent
 
-from lib.session_state_isolated import initialize_session_state, set_authentication, is_authenticated
-from lib.api_client_refactored import get_api_client
-from lib.security import input_sanitizer
-import components.theme as theme
+# Try multiple approaches to ensure imports work
+if os.path.exists('/mount/src/rpm-1.3/apps/streamlit-frontend'):
+    # Streamlit Cloud environment
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend')
+    # Also try adding lib and components directly
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend/lib')
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend/components')
+else:
+    # Local environment
+    parent_dir = current_dir.parent
+    sys.path.insert(0, str(parent_dir))
+    sys.path.insert(0, str(parent_dir.absolute()))
+
+# Import with explicit module paths as fallback
+try:
+    from lib.session_state_isolated import initialize_session_state, set_authentication, is_authenticated
+    from lib.api_client_refactored import get_api_client
+    from lib.security import input_sanitizer
+    import components.theme as theme
+except ImportError:
+    # Try direct imports if lib is not recognized as a package
+    import session_state_isolated
+    import api_client_refactored
+    import security
+    import theme
+    
+    # Reassign for consistency
+    initialize_session_state = session_state_isolated.initialize_session_state
+    set_authentication = session_state_isolated.set_authentication
+    is_authenticated = session_state_isolated.is_authenticated
+    get_api_client = api_client_refactored.get_api_client
+    input_sanitizer = security.input_sanitizer
 
 # Page config
 st.set_page_config(
@@ -40,7 +64,11 @@ if is_authenticated():
     if st.button("Go to Portfolio", type="primary"):
         st.switch_page("pages/1_Portfolio.py")
     if st.button("Logout"):
-        from lib.session_state_isolated import clear_session
+        try:
+            from lib.session_state_isolated import clear_session
+        except ImportError:
+            import session_state_isolated
+            clear_session = session_state_isolated.clear_session
         clear_session()
         st.rerun()
     st.stop()
@@ -64,7 +92,11 @@ if submitted:
         username = input_sanitizer.sanitize_html(username)
         
         # Attempt authentication
-        from lib.auth_manager import get_auth_manager
+        try:
+            from lib.auth_manager import get_auth_manager
+        except ImportError:
+            import auth_manager
+            get_auth_manager = auth_manager.get_auth_manager
         auth_manager = get_auth_manager()
         api_client = get_api_client()
         

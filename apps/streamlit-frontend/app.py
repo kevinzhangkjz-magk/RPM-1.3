@@ -10,16 +10,36 @@ import sys
 # Add project root to path - handle both local and Streamlit Cloud
 import os
 current_dir = Path(__file__).parent
-# Add multiple possible paths to handle different environments
-sys.path.insert(0, str(current_dir))
-sys.path.insert(0, str(current_dir.absolute()))
-# For Streamlit Cloud - add the explicit path
-sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend')
 
-from lib.session_state_isolated import initialize_session_state, get_session_value
-from lib.api_client_refactored import get_api_client
-from components.navigation import render_breadcrumb
-import components.theme as theme
+# Try multiple approaches to ensure imports work
+if os.path.exists('/mount/src/rpm-1.3/apps/streamlit-frontend'):
+    # Streamlit Cloud environment
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend')
+    # Also try adding lib and components directly
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend/lib')
+    sys.path.insert(0, '/mount/src/rpm-1.3/apps/streamlit-frontend/components')
+else:
+    # Local environment
+    sys.path.insert(0, str(current_dir))
+    sys.path.insert(0, str(current_dir.absolute()))
+
+# Import with explicit module paths as fallback
+try:
+    from lib.session_state_isolated import initialize_session_state, get_session_value
+    from lib.api_client_refactored import get_api_client
+    from components.navigation import render_breadcrumb
+    import components.theme as theme
+except ImportError:
+    # Try direct imports if lib is not recognized as a package
+    import session_state_isolated
+    import api_client_refactored
+    from navigation import render_breadcrumb
+    import theme
+    
+    # Reassign for consistency
+    initialize_session_state = session_state_isolated.initialize_session_state
+    get_session_value = session_state_isolated.get_session_value
+    get_api_client = api_client_refactored.get_api_client
 
 # Page configuration
 st.set_page_config(
