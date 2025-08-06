@@ -72,9 +72,17 @@ class APIClient:
     """
     
     def __init__(self, cache_manager: Optional[CacheManager] = None):
-        self.base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
-        self.timeout = int(os.getenv('API_TIMEOUT', '30'))
-        self.ws_base_url = os.getenv('WS_BASE_URL', 'ws://localhost:8000')
+        # Try to get from Streamlit secrets first, then environment variables
+        try:
+            import streamlit as st
+            self.base_url = st.secrets.get("API_BASE_URL", os.getenv('API_BASE_URL', 'http://localhost:8000'))
+            self.timeout = int(st.secrets.get("API_TIMEOUT", os.getenv('API_TIMEOUT', '30')))
+            self.ws_base_url = st.secrets.get("WS_BASE_URL", os.getenv('WS_BASE_URL', 'ws://localhost:8000'))
+        except:
+            # Fallback to environment variables if Streamlit not available
+            self.base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
+            self.timeout = int(os.getenv('API_TIMEOUT', '30'))
+            self.ws_base_url = os.getenv('WS_BASE_URL', 'ws://localhost:8000')
         self.headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
