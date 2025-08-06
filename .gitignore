@@ -63,6 +63,11 @@ next-env.d.ts
 .env.production
 .env*.local
 
+# Financial configuration files (sensitive)
+financial.json
+ppa_rates_config.json
+**/financial_config.json
+
 # Logs
 logs/
 *.log

@@ -192,6 +192,31 @@ class APIClient:
         response = self._make_request('POST', '/api/query', json=payload)
         return response.json()
     
+    def query_ai_assistant_with_context(self, query: str, context: Dict) -> Dict:
+        """
+        Send query to AI assistant with conversational context.
+        
+        Args:
+            query: Natural language query
+            context: Conversational context including previous queries
+            
+        Returns:
+            AI response with summary and optional visualization data
+        """
+        payload = {
+            'query': query,
+            'context': context,
+            'output_format': 'detailed'
+        }
+        
+        # Try enhanced endpoint first, fallback to standard
+        try:
+            response = self._make_request('POST', '/api/query/enhanced', json=payload)
+            return response.json()
+        except:
+            # Fallback to standard endpoint
+            return self.query_ai_assistant(query)
+    
     async def establish_websocket(self, site_id: str) -> None:
         """
         Establish WebSocket connection for real-time updates.
