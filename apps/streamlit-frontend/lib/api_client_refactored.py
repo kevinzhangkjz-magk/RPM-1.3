@@ -161,15 +161,20 @@ class APIClient:
                 return cached_data
         
         # Make request to actual API
-        response = self._make_request('GET', endpoint)
-        data = response.json()
-        sites = data.get('sites', [])
-        
-        # Cache the result if caching enabled
-        if use_cache:
-            self.cache.set('GET', endpoint, sites)
-        
-        return sites
+        try:
+            response = self._make_request('GET', endpoint)
+            data = response.json()
+            sites = data.get('sites', data) if isinstance(data, dict) else data
+            
+            # Cache the result if caching enabled
+            if use_cache:
+                self.cache.set('GET', endpoint, sites)
+            
+            return sites if isinstance(sites, list) else []
+        except Exception as e:
+            logger.error(f"Failed to get sites: {e}")
+            # Return empty list to prevent AttributeError
+            return []
     
     def get_site_detail(self, site_id: str, use_cache: bool = True) -> Dict:
         """
