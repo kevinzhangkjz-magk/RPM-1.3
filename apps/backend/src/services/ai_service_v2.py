@@ -170,11 +170,11 @@ Respond with JSON containing:
         data_context = {}
         data_needed = analysis.get("data_needed", [])
         site_names = analysis.get("site_names")
-        time_range = analysis.get("time_range", {"days": 30})
+        time_range = analysis.get("time_range") or {"days": 30}
         
         # Calculate time range
         end_date = datetime.now()
-        days = time_range.get("days", 30)
+        days = time_range.get("days", 30) if time_range else 30
         start_date = end_date - timedelta(days=days)
         
         try:
@@ -183,13 +183,17 @@ Respond with JSON containing:
                 if site_names:
                     data_context["sites"] = []
                     for site_name in site_names:
-                        site_data = await self.sites_repo.get_sites_by_name(site_name)
-                        if site_data:
-                            data_context["sites"].extend(site_data)
+                        # Note: get_sites_by_name doesn't exist, using get_site_by_id instead
+                        # Would need to iterate through all sites to find by name
+                        all_sites = self.sites_repo.get_all_sites()
+                        for site in all_sites:
+                            if site.get("site_name") == site_name:
+                                data_context["sites"].append(site)
+                                break
                 else:
-                    # Get all sites
-                    all_sites = await self.sites_repo.get_all_sites()
-                    data_context["sites"] = all_sites.get("sites", [])[:10]  # Limit to 10 for performance
+                    # Get all sites (not async method)
+                    all_sites = self.sites_repo.get_all_sites()
+                    data_context["sites"] = all_sites[:10] if all_sites else []  # Limit to 10 for performance
             
             # Fetch performance data
             if "performance" in data_needed and data_context.get("sites"):
@@ -197,11 +201,11 @@ Respond with JSON containing:
                 for site in data_context["sites"][:5]:  # Limit to 5 sites for performance
                     site_id = site.get("site_id")
                     if site_id:
-                        perf_data = await self.performance_repo.get_site_performance(
-                            site_id, start_date.isoformat(), end_date.isoformat()
+                        perf_data_tuple = self.performance_repo.get_site_performance_data(
+                            site_id, start_date, end_date
                         )
-                        if perf_data and perf_data.get("data_points"):
-                            data_context["performance"][site_id] = perf_data["data_points"]
+                        if perf_data_tuple and perf_data_tuple[0]:  # Check if tuple has data
+                            data_context["performance"][site_id] = perf_data_tuple[0]  # Use the data part of the tuple
             
             # Fetch skids data
             if "skids" in data_needed and data_context.get("sites"):
@@ -209,11 +213,11 @@ Respond with JSON containing:
                 for site in data_context["sites"][:3]:  # Limit for performance
                     site_id = site.get("site_id")
                     if site_id:
-                        skids_data = await self.skids_repo.get_site_skids(
-                            site_id, start_date.isoformat(), end_date.isoformat()
+                        skids_data = self.skids_repo.get_site_skids(
+                            site_id, start_date, end_date
                         )
-                        if skids_data and skids_data.get("skids"):
-                            data_context["skids"][site_id] = skids_data["skids"]
+                        if skids_data:
+                            data_context["skids"][site_id] = skids_data
             
             # Fetch inverters data
             if "inverters" in data_needed and data_context.get("sites"):
@@ -221,11 +225,11 @@ Respond with JSON containing:
                 for site in data_context["sites"][:2]:  # Limit for performance
                     site_id = site.get("site_id")
                     if site_id:
-                        inverters_data = await self.inverters_repo.get_site_inverters(
-                            site_id, start_date.isoformat(), end_date.isoformat()
+                        inverters_data = self.inverters_repo.get_site_inverters(
+                            site_id, start_date, end_date
                         )
-                        if inverters_data and inverters_data.get("inverters"):
-                            data_context["inverters"][site_id] = inverters_data["inverters"]
+                        if inverters_data:
+                            data_context["inverters"][site_id] = inverters_data
         
         except Exception as e:
             # Add error context but don't fail completely
