@@ -335,7 +335,7 @@ class APIClient:
         # Basic input sanitization
         query = query.strip()
         
-        endpoint = '/api/query/'
+        endpoint = '/api/query'
         payload = {'query': query}
         
         logger.info(f"Sending AI query: {query[:50]}...")

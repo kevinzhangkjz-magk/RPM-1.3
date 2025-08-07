@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -79,154 +80,7 @@ check_and_redirect_auth()
 # Get API client
 api_client = get_api_client()
 
-# Header
-st.title("🤖 AI Diagnostic Assistant")
-st.markdown("Ask questions about your solar assets in natural language")
-
-# Render breadcrumb
-render_breadcrumb()
-
-# Sidebar with predefined questions and controls
-with st.sidebar:
-    st.markdown("### 💡 Example Questions")
-    
-    # Categorized questions for better UX
-    st.markdown("#### 📊 Performance Analysis")
-    performance_questions = [
-        "Give me the 3 most underperforming sites",
-        "Which sites have RMSE above 2.0 MW?",
-        "Show me sites with less than 80% R-squared",
-        "What's the financial impact of our worst performers?",
-        "Compare Q3 vs Q4 performance",
-        "Which sites need immediate attention?"
-    ]
-    
-    for question in performance_questions:
-        if st.button(question, key=f"perf_{question[:20]}", use_container_width=True):
-            st.session_state.ai_input = question
-            st.rerun()
-    
-    st.markdown("#### 🔍 Diagnostics")
-    diagnostic_questions = [
-        "What's causing the performance drop at Site A?",
-        "Show me the power curve for sites with low PR",
-        "Identify sites with clipping issues",
-        "Show me sites with communication errors",
-        "Which inverters need maintenance?"
-    ]
-    
-    for question in diagnostic_questions:
-        if st.button(question, key=f"diag_{question[:20]}", use_container_width=True):
-            st.session_state.ai_input = question
-            st.rerun()
-    
-    st.markdown("#### 📈 Portfolio Overview")
-    portfolio_questions = [
-        "What's the total portfolio generation today?",
-        "Show availability trends for the past week",
-        "Compare inverter efficiency across all sites",
-        "Monthly performance report",
-        "Year-over-year comparison"
-    ]
-    
-    predefined_questions = portfolio_questions
-    
-    for question in predefined_questions:
-        if st.button(question, key=f"port_{question[:20]}", use_container_width=True):
-            st.session_state.ai_input = question
-            st.rerun()
-    
-    st.markdown("---")
-    
-    if st.button("🗑️ Clear Chat History", use_container_width=True):
-        # Clear chat history from session state
-        if 'chat_history' in st.session_state:
-            st.session_state.chat_history = []
-        st.rerun()
-    
-    st.markdown("---")
-    
-    st.markdown("### ⚙️ Settings")
-    
-    show_visualizations = st.checkbox("Show visualizations", value=True)
-    show_raw_data = st.checkbox("Show raw data", value=False)
-    auto_refresh = st.checkbox("Auto-refresh responses", value=False)
-
-# Main chat interface
-st.markdown("---")
-
-# Chat history display
-chat_container = st.container()
-
-with chat_container:
-    # Display chat history
-    if 'chat_history' not in st.session_state or not st.session_state.chat_history:
-        # Welcome message
-        with st.chat_message("assistant", avatar="🤖"):
-            st.markdown("""
-            Hello! I'm your AI Diagnostic Assistant. I can help you:
-            
-            - 🔍 Analyze performance issues
-            - 📊 Generate visualizations
-            - 🏭 Compare site metrics
-            - ⚡ Identify underperforming assets
-            - 🛠️ Suggest maintenance actions
-            
-            Ask me anything about your solar portfolio!
-            """)
-    else:
-        # Display chat history
-        for message in st.session_state.chat_history:
-            with st.chat_message(message['role'], avatar="🤖" if message['role'] == "assistant" else "👤"):
-                st.markdown(message['content'])
-                
-                # Display visualizations if present in metadata
-                if message.get('metadata') and show_visualizations:
-                    metadata = message['metadata']
-                    
-                    # Check for chart data
-                    if 'chart_type' in metadata and 'data' in metadata:
-                        render_ai_visualization(
-                            metadata['data'],
-                            metadata['chart_type'],
-                            metadata.get('columns', [])
-                        )
-                    
-                    # Show raw data if requested
-                    if show_raw_data and 'data' in metadata:
-                        with st.expander("📋 View Raw Data"):
-                            df = pd.DataFrame(metadata['data'])
-                            st.dataframe(df, use_container_width=True)
-
-# Input area
-st.markdown("---")
-
-# Use text input with session state
-if 'ai_input' not in st.session_state:
-    st.session_state.ai_input = ""
-
-user_input = st.text_input(
-    "Ask a question...",
-    value=st.session_state.ai_input,
-    placeholder="E.g., Which sites are underperforming today?",
-    key="user_query",
-    label_visibility="collapsed"
-)
-
-col1, col2, col3 = st.columns([1, 1, 4])
-
-with col1:
-    if st.button("🚀 Send", type="primary", use_container_width=True):
-        if user_input:
-            process_user_query(user_input, api_client)
-            st.session_state.ai_input = ""  # Clear input
-            st.rerun()
-
-with col2:
-    if st.button("🎙️ Voice Input", use_container_width=True):
-        st.info("Voice input will be implemented")
-
-# Functions
+# Define functions before using them
 def format_underperformance_response(summary: str, data: Any, metrics: dict, recommendations: list) -> str:
     """
     Format response for underperformance queries with structured output.
@@ -238,15 +92,12 @@ def format_underperformance_response(summary: str, data: Any, metrics: dict, rec
         recommendations: List of recommendations
     
     Returns:
-        Formatted markdown response
+        Formatted response string
     """
     formatted = []
     
-    # Add header
-    formatted.append("🎯 **UNDERPERFORMANCE ANALYSIS**\n")
-    
-    # Add summary if not already structured
-    if summary and not summary.startswith("🎯"):
+    # Add summary if not empty
+    if summary and summary.strip():
         formatted.append(summary + "\n")
     
     # Format sites data if available
@@ -397,319 +248,263 @@ def process_user_query(query: str, api_client) -> None:
         
         # Call AI API with enhanced context for asset management queries
         with st.spinner("Analyzing portfolio performance..." if is_underperformance_query else "Thinking..."):
-            # Add context for renewable energy queries
-            enhanced_query = sanitized_query
-            if is_underperformance_query:
-                enhanced_query = f"{sanitized_query}. Please provide R-squared values, RMSE in MW, and financial impact if available. Format the response with clear rankings."
-            
-            # Create enhanced request with context
-            response = api_client.query_ai_assistant_with_context(enhanced_query, context)
+            # Try context-aware query first
+            if hasattr(api_client, 'query_ai_assistant_with_context'):
+                response = api_client.query_ai_assistant_with_context(sanitized_query, context)
+            else:
+                # Fallback to standard query
+                response = api_client.query_ai_assistant(sanitized_query)
         
-        # Extract response components
-        summary = response.get('summary', 'I couldn\'t process that query.')
-        data = response.get('data')
-        chart_type = response.get('chart_type')
-        columns = response.get('columns', [])
-        metrics = response.get('metrics', {})
-        recommendations = response.get('recommendations', [])
+        # Debug: Show what we got from API
+        st.write("Debug - API Response:", response)
         
-        # Format response for underperformance queries
-        if is_underperformance_query and data:
-            formatted_summary = format_underperformance_response(
-                summary, data, metrics, recommendations
-            )
-            summary = formatted_summary
-        
-        # Add assistant response to history with metadata
-        add_chat_message(
-            "assistant",
-            summary,
-            metadata={
-                'data': data,
-                'chart_type': chart_type,
-                'columns': columns,
-                'metrics': metrics,
-                'recommendations': recommendations
-            }
-        )
-        
-    except Exception as e:
-        error_message = f"I encountered an error: {str(e)}. Please try rephrasing your question."
-        add_chat_message("assistant", error_message)
-
-
-def render_ai_visualization(data: Any, chart_type: str, columns: list) -> None:
-    """
-    Render visualization based on AI response data.
-    Enhanced to support renewable energy performance metrics.
-    
-    Args:
-        data: Data from AI response
-        chart_type: Type of chart to render
-        columns: Column names for the data
-    """
-    if not data:
-        return
-    
-    # Convert to DataFrame
-    df = pd.DataFrame(data)
-    
-    # Handle performance metrics visualization
-    if chart_type == "performance_metrics":
-        render_performance_metrics_chart(df)
-        return
-    
-    # Handle financial impact visualization
-    if chart_type == "financial_impact":
-        render_financial_impact_chart(df)
-        return
-    
-    if chart_type == "scatter":
-        if len(columns) >= 2:
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=df[columns[0]] if columns[0] in df.columns else df.iloc[:, 0],
-                y=df[columns[1]] if columns[1] in df.columns else df.iloc[:, 1],
-                mode='markers',
-                marker=dict(
-                    color='#54b892',
-                    size=8,
-                    line=dict(width=1, color='#ffffff')
-                ),
-                hovertemplate='%{x}<br>%{y}<extra></extra>'
-            ))
+        # Process response based on query type
+        if is_underperformance_query and response:
+            # Extract components for enhanced formatting
+            summary = response.get('summary', '')
+            data = response.get('data', [])
             
-            fig.update_layout(
-                xaxis_title=columns[0] if columns else "X Axis",
-                yaxis_title=columns[1] if len(columns) > 1 else "Y Axis",
-                height=400,
-                paper_bgcolor='#1b2437',
-                plot_bgcolor='#1b2437',
-                font=dict(color='#f0f0f0'),
-                xaxis=dict(gridcolor='#5f5f5f'),
-                yaxis=dict(gridcolor='#5f5f5f')
-            )
+            # Check if summary contains JSON data (backend sometimes returns data in summary)
+            if not data and summary and '```json' in summary:
+                try:
+                    # Extract JSON from markdown code block
+                    import re
+                    json_match = re.search(r'```json\n(.*?)\n```', summary, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(1)
+                        parsed_response = json.loads(json_str)
+                        summary = parsed_response.get('summary', summary)
+                        data = parsed_response.get('data', [])
+                        if 'metrics' in parsed_response:
+                            response['metrics'] = parsed_response['metrics']
+                        if 'recommendations' in parsed_response:
+                            response['recommendations'] = parsed_response['recommendations']
+                except:
+                    pass  # If parsing fails, continue with original data
             
-            st.plotly_chart(fig, use_container_width=True)
-    
-    elif chart_type == "bar":
-        if columns:
-            x_col = columns[0] if columns[0] in df.columns else df.columns[0]
-            y_col = columns[1] if len(columns) > 1 and columns[1] in df.columns else df.columns[1]
+            # Generate performance metrics (use from response if available)
+            metrics = response.get('metrics', {})
+            recommendations = response.get('recommendations', [])
             
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=df[x_col],
-                y=df[y_col],
-                marker=dict(
-                    color=df[y_col],
-                    colorscale=[
-                        [0, '#8c7f79'],
-                        [0.5, '#647cb2'],
-                        [1, '#54b892']
-                    ],
-                    line=dict(width=1, color='#ffffff')
-                ),
-                text=df[y_col].round(1) if df[y_col].dtype in ['float64', 'float32'] else df[y_col],
-                textposition='outside',
-                hovertemplate='%{x}<br>%{y}<extra></extra>'
-            ))
-            
-            fig.update_layout(
-                xaxis_title=x_col,
-                yaxis_title=y_col,
-                height=400,
-                paper_bgcolor='#1b2437',
-                plot_bgcolor='#1b2437',
-                font=dict(color='#f0f0f0'),
-                xaxis=dict(gridcolor='#5f5f5f'),
-                yaxis=dict(gridcolor='#5f5f5f'),
-                showlegend=False
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-    
-    elif chart_type == "multi-scatter":
-        # Multiple series scatter plot
-        fig = go.Figure()
-        
-        # Group by first column if it exists
-        if columns and len(df.columns) > 2:
-            groups = df[columns[0]].unique() if columns[0] in df.columns else df.iloc[:, 0].unique()
-            
-            for group in groups[:5]:  # Limit to 5 groups
-                group_data = df[df[columns[0]] == group] if columns[0] in df.columns else df[df.iloc[:, 0] == group]
+            if data and isinstance(data, list):
+                # Calculate portfolio-level metrics
+                metrics['total_sites'] = len(data)
                 
-                fig.add_trace(go.Scatter(
-                    x=group_data[columns[1]] if len(columns) > 1 and columns[1] in group_data.columns else group_data.iloc[:, 1],
-                    y=group_data[columns[2]] if len(columns) > 2 and columns[2] in group_data.columns else group_data.iloc[:, 2],
-                    mode='markers',
-                    name=str(group),
-                    marker=dict(size=8, line=dict(width=1, color='#ffffff')),
-                    hovertemplate='%{x}<br>%{y}<extra></extra>'
-                ))
-        
-        fig.update_layout(
-            xaxis_title=columns[1] if len(columns) > 1 else "X Axis",
-            yaxis_title=columns[2] if len(columns) > 2 else "Y Axis",
-            height=400,
-            paper_bgcolor='#1b2437',
-            plot_bgcolor='#1b2437',
-            font=dict(color='#f0f0f0'),
-            xaxis=dict(gridcolor='#5f5f5f'),
-            yaxis=dict(gridcolor='#5f5f5f'),
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-    
-    else:
-        # Enhanced table view for performance data
-        if 'r_squared' in df.columns or 'rmse' in df.columns:
-            # Style the dataframe for performance metrics
-            styled_df = df.style.format({
-                'r_squared': '{:.3f}',
-                'rmse': '{:.2f}',
-                'revenue_impact': '${:,.0f}',
-                'capacity_factor': '{:.1%}',
-                'availability': '{:.1%}'
-            }, na_rep='N/A')
+                r_squared_values = [site.get('r_squared', 0) for site in data 
+                                   if isinstance(site.get('r_squared'), (int, float))]
+                if r_squared_values:
+                    metrics['avg_r_squared'] = sum(r_squared_values) / len(r_squared_values)
+                    metrics['sites_below_target'] = len([r for r in r_squared_values if r < 0.8])
+                
+                revenue_impacts = [site.get('revenue_impact', 0) for site in data 
+                                  if isinstance(site.get('revenue_impact'), (int, float))]
+                if revenue_impacts:
+                    metrics['total_revenue_impact'] = sum(revenue_impacts)
+                
+                # Generate recommendations based on data
+                if metrics.get('sites_below_target', 0) > 2:
+                    recommendations.append("Schedule immediate maintenance review for critical sites")
+                if metrics.get('avg_r_squared', 1) < 0.8:
+                    recommendations.append("Implement portfolio-wide performance optimization program")
+                if metrics.get('total_revenue_impact', 0) > 100000:
+                    recommendations.append("Prioritize high-impact sites for rapid resolution")
+                
+                # Add specific site recommendations
+                for site in data[:3]:  # Top 3 worst performers
+                    if site.get('r_squared', 1) < 0.7:
+                        recommendations.append(f"Critical: Investigate {site.get('site_name', 'site')} immediately")
             
-            # Apply color gradients for performance metrics
-            if 'r_squared' in df.columns:
-                styled_df = styled_df.background_gradient(
-                    subset=['r_squared'],
-                    cmap='RdYlGn',
-                    vmin=0.5,
-                    vmax=1.0
-                )
-            
-            if 'rmse' in df.columns:
-                styled_df = styled_df.background_gradient(
-                    subset=['rmse'],
-                    cmap='RdYlGn_r',
-                    vmin=0,
-                    vmax=5
-                )
-            
-            st.dataframe(styled_df, use_container_width=True)
+            # Format enhanced response
+            formatted_response = format_underperformance_response(summary, data, metrics, recommendations)
+            add_chat_message("assistant", formatted_response)
         else:
-            # Default table view
-            st.dataframe(df, use_container_width=True)
+            # Standard response handling
+            summary = response.get('summary', 'I encountered an issue processing your query.')
+            add_chat_message("assistant", summary)
+            
+            # Handle visualizations if present
+            if response.get('chart_type') and response.get('data'):
+                chart_type = response['chart_type']
+                data = response['data']
+                
+                # Create appropriate visualization
+                if chart_type == 'scatter' and isinstance(data, list):
+                    df = pd.DataFrame(data)
+                    if 'actual' in df.columns and 'predicted' in df.columns:
+                        fig = render_performance_scatter(df)
+                        st.plotly_chart(fig, use_container_width=True)
+                elif chart_type == 'bar' and isinstance(data, list):
+                    df = pd.DataFrame(data)
+                    if not df.empty:
+                        first_numeric = df.select_dtypes(include=['number']).columns[0] if len(df.select_dtypes(include=['number']).columns) > 0 else None
+                        first_string = df.select_dtypes(include=['object']).columns[0] if len(df.select_dtypes(include=['object']).columns) > 0 else None
+                        
+                        if first_numeric and first_string:
+                            fig = px.bar(df, x=first_string, y=first_numeric, 
+                                       title=f"{first_numeric} by {first_string}")
+                            st.plotly_chart(fig, use_container_width=True)
+                
+                # Display data table if available
+                if isinstance(data, list) and data:
+                    with st.expander("📊 View Data Table"):
+                        st.dataframe(pd.DataFrame(data))
+    
+    except Exception as e:
+        error_msg = f"I encountered an error processing your query: {str(e)}. Please try rephrasing your question."
+        add_chat_message("assistant", error_msg)
+        st.error(f"Error: {str(e)}")
+        # Debug: Show the error
+        st.write(f"Debug - Error occurred: {str(e)}")
+        import traceback
+        st.write(f"Debug - Traceback: {traceback.format_exc()}")
 
+# Header
+st.title("🤖 AI Diagnostic Assistant")
+st.markdown("Ask questions about your solar assets in natural language")
 
-def render_performance_metrics_chart(df: pd.DataFrame) -> None:
-    """
-    Render specialized chart for performance metrics (R-squared vs RMSE).
-    """
-    if 'r_squared' in df.columns and 'rmse' in df.columns:
-        fig = go.Figure()
-        
-        # Add scatter plot with custom styling
-        fig.add_trace(go.Scatter(
-            x=df['r_squared'],
-            y=df['rmse'],
-            mode='markers+text',
-            text=df.get('site_name', df.index),
-            textposition="top center",
-            marker=dict(
-                size=df.get('revenue_impact', 10).fillna(10) / 1000 if 'revenue_impact' in df.columns else 10,
-                color=df['r_squared'],
-                colorscale=[
-                    [0, '#ff4444'],     # Red for low R²
-                    [0.5, '#ffaa00'],   # Orange for medium
-                    [1, '#44ff44']      # Green for high R²
-                ],
-                showscale=True,
-                colorbar=dict(title="R²"),
-                line=dict(width=1, color='#ffffff')
-            ),
-            hovertemplate=(
-                "<b>%{text}</b><br>"
-                "R²: %{x:.3f}<br>"
-                "RMSE: %{y:.2f} MW<br>"
-                "<extra></extra>"
+# Render breadcrumb
+render_breadcrumb()
+
+# Create a placeholder for processing queries from sidebar
+query_to_process = None
+
+# Sidebar with predefined questions and controls
+with st.sidebar:
+    st.markdown("### 💡 Example Questions")
+    
+    # Categorized questions for better UX
+    st.markdown("#### 📊 Performance Analysis")
+    performance_questions = [
+        "Give me the 3 most underperforming sites",
+        "Which sites have RMSE above 2.0 MW?",
+        "Show me sites with less than 80% R-squared",
+        "What's the financial impact of our worst performers?",
+        "Compare Q3 vs Q4 performance",
+    ]
+    
+    for question in performance_questions:
+        if st.button(question, key=f"perf_{question[:20]}", use_container_width=True):
+            query_to_process = question
+    
+    st.markdown("#### 🔍 Site Diagnostics")
+    diagnostic_questions = [
+        "Show the power curve for Assembly 2",
+        "What's the performance ratio for Highland?",
+        "Analyze inverter efficiency at Assembly 2",
+        "Compare actual vs expected at Big River",
+        "Which inverters are underperforming at Assembly 2?"
+    ]
+    
+    for question in diagnostic_questions:
+        if st.button(question, key=f"diag_{question[:20]}", use_container_width=True):
+            query_to_process = question
+    
+    st.markdown("#### 📈 Trends & Metrics")
+    trend_questions = [
+        "Show monthly energy production trends",
+        "What's the average PR across all sites?",
+        "Which sites improved the most this month?",
+        "Show capacity factor by site",
+        "What's our portfolio efficiency?"
+    ]
+    
+    for question in trend_questions:
+        if st.button(question, key=f"trend_{question[:20]}", use_container_width=True):
+            query_to_process = question
+    
+    st.divider()
+    
+    # Clear chat button
+    if st.button("🗑️ Clear Chat History", use_container_width=True):
+        # Clear chat history from session state
+        if 'chat_history' in st.session_state:
+            st.session_state.chat_history = []
+        st.rerun()
+    
+    # Export chat button
+    if st.button("📥 Export Chat", use_container_width=True):
+        if 'chat_history' in st.session_state and st.session_state.chat_history:
+            chat_export = json.dumps(st.session_state.chat_history, indent=2, default=str)
+            st.download_button(
+                label="Download Chat History",
+                data=chat_export,
+                file_name=f"chat_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json"
             )
-        ))
-        
-        # Add reference lines
-        fig.add_hline(y=2.0, line_dash="dash", line_color="orange", 
-                     annotation_text="RMSE Target: 2.0 MW")
-        fig.add_vline(x=0.8, line_dash="dash", line_color="orange",
-                     annotation_text="R² Target: 0.8")
-        
-        fig.update_layout(
-            title="Site Performance: R² vs RMSE",
-            xaxis_title="R² (Correlation)",
-            yaxis_title="RMSE (MW)",
-            height=500,
-            paper_bgcolor='#1b2437',
-            plot_bgcolor='#1b2437',
-            font=dict(color='#f0f0f0'),
-            xaxis=dict(gridcolor='#5f5f5f', range=[0, 1]),
-            yaxis=dict(gridcolor='#5f5f5f'),
-            showlegend=False
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
 
-def render_financial_impact_chart(df: pd.DataFrame) -> None:
-    """
-    Render financial impact waterfall or bar chart.
-    """
-    if 'revenue_impact' in df.columns:
-        # Sort by revenue impact
-        df_sorted = df.sort_values('revenue_impact', ascending=True)
-        
-        fig = go.Figure()
-        
-        # Create horizontal bar chart
-        fig.add_trace(go.Bar(
-            x=df_sorted['revenue_impact'],
-            y=df_sorted.get('site_name', df_sorted.index),
-            orientation='h',
-            marker=dict(
-                color=df_sorted['revenue_impact'],
-                colorscale=[
-                    [0, '#44ff44'],     # Green for low impact
-                    [0.5, '#ffaa00'],   # Orange for medium
-                    [1, '#ff4444']      # Red for high impact
-                ],
-                line=dict(width=1, color='#ffffff')
-            ),
-            text=['${:,.0f}'.format(x) for x in df_sorted['revenue_impact']],
-            textposition='outside',
-            hovertemplate=(
-                "<b>%{y}</b><br>"
-                "Revenue Impact: %{x:$,.0f}/month<br>"
-                "<extra></extra>"
-            )
-        ))
-        
-        fig.update_layout(
-            title="Monthly Revenue Impact by Site",
-            xaxis_title="Revenue Impact ($/month)",
-            yaxis_title="Site",
-            height=max(400, len(df_sorted) * 40),
-            paper_bgcolor='#1b2437',
-            plot_bgcolor='#1b2437',
-            font=dict(color='#f0f0f0'),
-            xaxis=dict(gridcolor='#5f5f5f'),
-            yaxis=dict(gridcolor='#5f5f5f'),
-            showlegend=False,
-            margin=dict(l=150)  # More space for site names
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+# Chat history display
+chat_container = st.container()
 
-# Footer with capabilities
-with st.expander("🔍 AI Assistant Capabilities - Renewable Energy Asset Management"):
+with chat_container:
+    # Display chat history
+    if 'chat_history' not in st.session_state or not st.session_state.chat_history:
+        # Welcome message
+        with st.chat_message("assistant", avatar="🤖"):
+            st.markdown("""
+            👋 Hello! I'm your AI Diagnostic Assistant for renewable energy asset management.
+            
+            I can help you:
+            - **Identify underperforming sites** using R² and RMSE metrics
+            - **Calculate financial impact** of performance issues
+            - **Analyze power curves** and performance trends
+            - **Compare sites** and track improvements
+            
+            Try asking: **"Give me the 3 most underperforming sites"** or select a question from the sidebar.
+            """)
+    else:
+        # Display chat history
+        for message in st.session_state.chat_history:
+            with st.chat_message(message['role'], avatar="🤖" if message['role'] == "assistant" else "👤"):
+                st.markdown(message['content'])
+
+# Input area with enhanced UI
+st.markdown("---")
+
+# Initialize input state
+if 'ai_input' not in st.session_state:
+    st.session_state.ai_input = ""
+
+# Query input - don't use value parameter when using key that's in session state
+user_input = st.text_area(
+    "Ask a question about your solar assets:",
+    placeholder="E.g., Which sites are underperforming today?",
+    key="ai_input",  # This will automatically sync with session state
+    label_visibility="collapsed",
+    height=100
+)
+
+col1, col2, col3 = st.columns([1, 1, 4])
+
+with col1:
+    if st.button("🚀 Send", type="primary", use_container_width=True):
+        # Get the current value from session state
+        current_input = st.session_state.get('ai_input', '')
+        st.write(f"Debug - Input value: '{current_input}'")  # Debug line
+        
+        if current_input and current_input.strip():
+            st.write("Debug - Processing query...")  # Debug line
+            try:
+                # Process the query
+                process_user_query(current_input, api_client)
+            except Exception as e:
+                st.error(f"Error processing query: {e}")
+                import traceback
+                st.write(traceback.format_exc())
+            # Don't clear or rerun yet - let's see what happens
+        else:
+            st.warning("Please enter a question before clicking Send.")
+
+with col2:
+    if st.button("🎙️ Voice Input", use_container_width=True):
+        st.info("Voice input will be implemented")
+
+# Process query from sidebar if one was selected
+if query_to_process:
+    process_user_query(query_to_process, api_client)
+    st.rerun()
+
+# Help section in expander
+with st.expander("ℹ️ Help & Capabilities"):
     st.markdown("""
     ### What I can do:
     

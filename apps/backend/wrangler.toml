@@ -1,0 +1,21 @@
+name = "rpm-backend"
+main = "worker.js"
+compatibility_date = "2024-08-06"
+
+[env.production]
+vars = { ENVIRONMENT = "production" }
+
+[[kv_namespaces]]
+binding = "KV"
+id = "YOUR_KV_NAMESPACE_ID"
+
+[vars]
+REDSHIFT_HOST = "data-analytics.crmjfkw9o04v.us-east-1.redshift.amazonaws.com"
+REDSHIFT_PORT = "5439"
+REDSHIFT_DATABASE = "desri_analytics"
+REDSHIFT_USER = "chail"
+BASIC_AUTH_USERNAME = "testuser"
+BASIC_AUTH_PASSWORD = "testpass"
+
+# Secrets should be set via wrangler secret
+# wrangler secret put REDSHIFT_PASSWORD
