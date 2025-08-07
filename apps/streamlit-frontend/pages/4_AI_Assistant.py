@@ -81,93 +81,130 @@ check_and_redirect_auth()
 api_client = get_api_client()
 
 # Define functions before using them
-def format_underperformance_response(summary: str, data: Any, metrics: dict, recommendations: list) -> str:
+def format_conversational_response(summary: str, data: Any, metrics: dict, recommendations: list, query_type: str) -> str:
     """
-    Format response for underperformance queries with structured output.
+    Format response in a conversational, technical manner with integrated data.
     
     Args:
         summary: Original summary from API
         data: Performance data
         metrics: Performance metrics (R-squared, RMSE, etc.)
         recommendations: List of recommendations
+        query_type: Type of query for context
     
     Returns:
-        Formatted response string
+        Conversational response string
     """
-    formatted = []
+    response_parts = []
     
-    # Add summary if not empty
-    if summary and summary.strip():
-        formatted.append(summary + "\n")
+    # Start with analysis context - check for various underperformance queries
+    query_lower = query_type.lower()
+    is_underperformance = any(term in query_lower for term in [
+        'underperform', 'worst', 'bottom', 'poor', '3 most', 'three most'
+    ])
     
-    # Format sites data if available
-    if data and isinstance(data, list) and len(data) > 0:
-        formatted.append("\n📊 **Performance Metrics:**\n")
-        
-        for idx, site in enumerate(data[:5], 1):  # Top 5 sites
-            site_name = site.get('site_name', f'Site {idx}')
-            r_squared = site.get('r_squared', 'N/A')
-            rmse = site.get('rmse', 'N/A')
-            revenue_impact = site.get('revenue_impact', 'N/A')
-            status = site.get('status', 'REVIEW')
+    if is_underperformance and data and isinstance(data, list) and len(data) > 0:
+            num_sites = len(data)
             
-            # Determine alert level
-            if isinstance(r_squared, (int, float)):
-                if r_squared < 0.7:
-                    alert = "🚨 CRITICAL"
-                elif r_squared < 0.8:
-                    alert = "⚠️ WARNING"
-                elif r_squared < 0.9:
-                    alert = "📌 MONITOR"
+            # Opening analysis
+            response_parts.append(f"Based on my analysis of your renewable energy portfolio, I've identified {num_sites} sites that require attention due to performance deviations from their 8760 model predictions.\n")
+            
+            # Detailed site analysis
+            for idx, site in enumerate(data[:3], 1):  # Focus on top 3
+                site_name = site.get('site_name', f'Site {idx}')
+                r_squared = site.get('r_squared', 0)
+                rmse = site.get('rmse', 0)
+                revenue_impact = site.get('revenue_impact', 0)
+                root_cause = site.get('root_cause', '')
+                
+                if idx == 1:
+                    response_parts.append(f"\nThe most concerning is **{site_name}**, which is exhibiting an R² of {r_squared:.3f} and an RMSE of {rmse:.2f} MW. ")
+                    if revenue_impact > 0:
+                        response_parts.append(f"This performance degradation translates to approximately ${revenue_impact:,.0f} in monthly revenue at risk. ")
+                    if root_cause:
+                        response_parts.append(f"The primary issue appears to be {root_cause.lower()}. ")
+                elif idx == 2:
+                    response_parts.append(f"\n\n**{site_name}** is the second site requiring immediate attention, with an R² of {r_squared:.3f} and RMSE of {rmse:.2f} MW")
+                    if revenue_impact > 0:
+                        response_parts.append(f", representing a potential revenue impact of ${revenue_impact:,.0f} per month")
+                    response_parts.append(". ")
+                    if root_cause:
+                        response_parts.append(f"Analysis indicates {root_cause.lower()}. ")
                 else:
-                    alert = "✅ GOOD"
-            else:
-                alert = status
+                    response_parts.append(f"\n\n**{site_name}** rounds out the top three underperformers with an R² of {r_squared:.3f} and RMSE of {rmse:.2f} MW")
+                    if revenue_impact > 0:
+                        response_parts.append(f" (${revenue_impact:,.0f}/month at risk)")
+                    response_parts.append(". ")
+                    if root_cause:
+                        response_parts.append(f"The system shows signs of {root_cause.lower()}. ")
             
-            formatted.append(f"\n**{idx}. {site_name}** - {alert}")
+            # Portfolio-level insights
+            if metrics:
+                response_parts.append("\n\nFrom a portfolio perspective, ")
+                insights = []
+                if 'avg_r_squared' in metrics:
+                    avg_r2 = metrics['avg_r_squared']
+                    if avg_r2 < 0.8:
+                        insights.append(f"the average R² across all sites is {avg_r2:.3f}, which is below the target threshold of 0.8")
+                    else:
+                        insights.append(f"the portfolio maintains an average R² of {avg_r2:.3f}")
+                
+                if 'total_revenue_impact' in metrics and metrics['total_revenue_impact'] > 0:
+                    insights.append(f"with total revenue exposure of ${metrics['total_revenue_impact']:,.0f} per month")
+                
+                if 'sites_below_target' in metrics and metrics['sites_below_target'] > 0:
+                    insights.append(f"and {metrics['sites_below_target']} sites operating below target performance")
+                
+                if insights:
+                    response_parts.append(", ".join(insights))
+                    response_parts.append(".")
             
-            # Format metrics
-            if isinstance(r_squared, (int, float)):
-                formatted.append(f"   • R²: {r_squared:.3f}")
-            else:
-                formatted.append(f"   • R²: {r_squared}")
-            
-            if isinstance(rmse, (int, float)):
-                formatted.append(f"   • RMSE: {rmse:.2f} MW")
-            else:
-                formatted.append(f"   • RMSE: {rmse}")
-            
-            if revenue_impact != 'N/A':
-                if isinstance(revenue_impact, (int, float)):
-                    formatted.append(f"   • Revenue Impact: ${revenue_impact:,.0f}/month")
-                else:
-                    formatted.append(f"   • Revenue Impact: {revenue_impact}")
-            
-            # Add root cause if available
-            root_cause = site.get('root_cause')
-            if root_cause:
-                formatted.append(f"   • Root Cause: {root_cause}")
+            # Technical recommendations
+            if recommendations and len(recommendations) > 0:
+                response_parts.append("\n\nBased on this analysis, I recommend the following immediate actions: ")
+                response_parts.append(", ".join(recommendations[:3]).lower())
+                response_parts.append(". These interventions should be prioritized based on revenue impact and operational feasibility.")
     
-    # Add portfolio insights
-    if metrics:
-        formatted.append("\n💡 **Portfolio Insights:**\n")
-        
-        if 'total_sites' in metrics:
-            formatted.append(f"• Total Sites Analyzed: {metrics['total_sites']}")
-        if 'avg_r_squared' in metrics:
-            formatted.append(f"• Average R²: {metrics['avg_r_squared']:.3f}")
-        if 'total_revenue_impact' in metrics:
-            formatted.append(f"• Total Revenue at Risk: ${metrics['total_revenue_impact']:,.0f}/month")
-        if 'sites_below_target' in metrics:
-            formatted.append(f"• Sites Below Target: {metrics['sites_below_target']}")
+    elif "rmse" in query_type.lower():
+        if data and isinstance(data, list) and len(data) > 0:
+            threshold = 2.0  # MW threshold
+            sites_above = [s for s in data if s.get('rmse', 0) > threshold]
+            
+            response_parts.append(f"I've completed an RMSE analysis across your portfolio. ")
+            response_parts.append(f"{len(sites_above)} sites are currently operating with RMSE values exceeding {threshold} MW, ")
+            response_parts.append("indicating significant deviation from predicted power output.\n\n")
+            
+            for site in sites_above[:3]:
+                site_name = site.get('site_name')
+                rmse = site.get('rmse', 0)
+                response_parts.append(f"**{site_name}** shows an RMSE of {rmse:.2f} MW, ")
+                if site.get('revenue_impact'):
+                    response_parts.append(f"with associated revenue risk of ${site['revenue_impact']:,.0f}/month. ")
     
-    # Add recommendations
-    if recommendations:
-        formatted.append("\n📋 **Recommended Actions:**\n")
-        for idx, rec in enumerate(recommendations[:5], 1):
-            formatted.append(f"{idx}. {rec}")
+    else:
+        # Handle all other cases - prioritize using summary if available
+        if summary and summary.strip():
+            response_parts.append(summary)
+        elif data and isinstance(data, list) and len(data) > 0:
+            # Format data conversationally
+            response_parts.append("Based on my analysis of the portfolio:\n\n")
+            for idx, site in enumerate(data[:3], 1):
+                if isinstance(site, dict):
+                    site_name = site.get('site_name', f'Site {idx}')
+                    r_squared = site.get('r_squared', 0)
+                    rmse = site.get('rmse', 0)
+                    revenue_impact = site.get('revenue_impact', 0)
+                    
+                    response_parts.append(f"**{site_name}**: R²={r_squared:.3f}, RMSE={rmse:.2f} MW")
+                    if revenue_impact > 0:
+                        response_parts.append(f" (Revenue impact: ${revenue_impact:,.0f}/month)")
+                    response_parts.append("\n")
     
-    return "\n".join(formatted)
+    # Always return something meaningful
+    if response_parts:
+        return "".join(response_parts)
+    else:
+        return "I need more information to provide a comprehensive analysis. Could you please specify which metrics or sites you'd like me to analyze?"
 
 def build_conversational_context() -> dict:
     """
@@ -220,6 +257,8 @@ def validate_and_sanitize_query(query: str) -> str:
     
     return sanitized.strip()
 
+# Remove the visualization function as data will be integrated in responses
+
 def process_user_query(query: str, api_client) -> None:
     """
     Process user query through AI API and display response.
@@ -232,8 +271,13 @@ def process_user_query(query: str, api_client) -> None:
     # Validate and sanitize query
     sanitized_query = validate_and_sanitize_query(query)
     
-    # Add user message to history
+    # Make sure chat history is initialized
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+    
+    # Add user message to history immediately and ensure it persists
     add_chat_message("user", sanitized_query)
+    
     
     # Build conversational context from history
     context = build_conversational_context()
@@ -255,79 +299,36 @@ def process_user_query(query: str, api_client) -> None:
                 # Fallback to standard query
                 response = api_client.query_ai_assistant(sanitized_query)
         
-        # Debug: Show what we got from API
-        st.write("Debug - API Response:", response)
+        # Debug: Show what we got from API (only if in debug mode)
+        if st.session_state.get('debug_mode', False):
+            with st.expander("Debug - API Response"):
+                st.json(response)
         
-        # Process response based on query type
-        if is_underperformance_query and response:
-            # Extract components for enhanced formatting
-            summary = response.get('summary', '')
-            data = response.get('data', [])
-            
-            # Check if summary contains JSON data (backend sometimes returns data in summary)
-            if not data and summary and '```json' in summary:
-                try:
-                    # Extract JSON from markdown code block
-                    import re
-                    json_match = re.search(r'```json\n(.*?)\n```', summary, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group(1)
-                        parsed_response = json.loads(json_str)
-                        summary = parsed_response.get('summary', summary)
-                        data = parsed_response.get('data', [])
-                        if 'metrics' in parsed_response:
-                            response['metrics'] = parsed_response['metrics']
-                        if 'recommendations' in parsed_response:
-                            response['recommendations'] = parsed_response['recommendations']
-                except:
-                    pass  # If parsing fails, continue with original data
-            
-            # Generate performance metrics (use from response if available)
-            metrics = response.get('metrics', {})
-            recommendations = response.get('recommendations', [])
-            
-            if data and isinstance(data, list):
-                # Calculate portfolio-level metrics
-                metrics['total_sites'] = len(data)
-                
-                r_squared_values = [site.get('r_squared', 0) for site in data 
-                                   if isinstance(site.get('r_squared'), (int, float))]
-                if r_squared_values:
-                    metrics['avg_r_squared'] = sum(r_squared_values) / len(r_squared_values)
-                    metrics['sites_below_target'] = len([r for r in r_squared_values if r < 0.8])
-                
-                revenue_impacts = [site.get('revenue_impact', 0) for site in data 
-                                  if isinstance(site.get('revenue_impact'), (int, float))]
-                if revenue_impacts:
-                    metrics['total_revenue_impact'] = sum(revenue_impacts)
-                
-                # Generate recommendations based on data
-                if metrics.get('sites_below_target', 0) > 2:
-                    recommendations.append("Schedule immediate maintenance review for critical sites")
-                if metrics.get('avg_r_squared', 1) < 0.8:
-                    recommendations.append("Implement portfolio-wide performance optimization program")
-                if metrics.get('total_revenue_impact', 0) > 100000:
-                    recommendations.append("Prioritize high-impact sites for rapid resolution")
-                
-                # Add specific site recommendations
-                for site in data[:3]:  # Top 3 worst performers
-                    if site.get('r_squared', 1) < 0.7:
-                        recommendations.append(f"Critical: Investigate {site.get('site_name', 'site')} immediately")
-            
-            # Format enhanced response
-            formatted_response = format_underperformance_response(summary, data, metrics, recommendations)
-            add_chat_message("assistant", formatted_response)
-        else:
-            # Standard response handling
-            summary = response.get('summary', 'I encountered an issue processing your query.')
-            add_chat_message("assistant", summary)
-            
-            # Handle visualizations if present
-            if response.get('chart_type') and response.get('data'):
-                chart_type = response['chart_type']
-                data = response['data']
-                
-                # Create appropriate visualization
+        # Extract response components
+        summary = response.get('summary', '')
+        data = response.get('data', [])
+        chart_type = response.get('chart_type')
+        metrics = response.get('metrics', {})
+        recommendations = response.get('recommendations', [])
+        
+        # Format conversational response
+        response_text = format_conversational_response(
+            summary=summary,
+            data=data,
+            metrics=metrics,
+            recommendations=recommendations,
+            query_type=sanitized_query
+        )
+        
+        # Add the response to chat history
+        if response_text:
+            add_chat_message("assistant", response_text)
+        
+        # Don't show separate visualizations - data is integrated in the response
+        if chart_type and data:
+            # Handle other chart types
+            with st.container():
+                st.markdown("---")
                 if chart_type == 'scatter' and isinstance(data, list):
                     df = pd.DataFrame(data)
                     if 'actual' in df.columns and 'predicted' in df.columns:
@@ -343,20 +344,20 @@ def process_user_query(query: str, api_client) -> None:
                             fig = px.bar(df, x=first_string, y=first_numeric, 
                                        title=f"{first_numeric} by {first_string}")
                             st.plotly_chart(fig, use_container_width=True)
-                
-                # Display data table if available
-                if isinstance(data, list) and data:
-                    with st.expander("📊 View Data Table"):
-                        st.dataframe(pd.DataFrame(data))
     
     except Exception as e:
         error_msg = f"I encountered an error processing your query: {str(e)}. Please try rephrasing your question."
         add_chat_message("assistant", error_msg)
         st.error(f"Error: {str(e)}")
-        # Debug: Show the error
-        st.write(f"Debug - Error occurred: {str(e)}")
-        import traceback
-        st.write(f"Debug - Traceback: {traceback.format_exc()}")
+        # Debug: Show the error (only if in debug mode)
+        if st.session_state.get('debug_mode', False):
+            import traceback
+            with st.expander("Debug - Error Details"):
+                st.write(f"Error: {str(e)}")
+                st.code(traceback.format_exc())
+    finally:
+        # Don't clear any state here to preserve the chat
+        pass
 
 # Header
 st.title("🤖 AI Diagnostic Assistant")
@@ -441,15 +442,15 @@ with chat_container:
         # Welcome message
         with st.chat_message("assistant", avatar="🤖"):
             st.markdown("""
-            👋 Hello! I'm your AI Diagnostic Assistant for renewable energy asset management.
+            Welcome. I'm your AI Diagnostic Assistant specializing in renewable energy asset performance analysis.
             
-            I can help you:
-            - **Identify underperforming sites** using R² and RMSE metrics
-            - **Calculate financial impact** of performance issues
-            - **Analyze power curves** and performance trends
-            - **Compare sites** and track improvements
+            I provide technical analysis of:
+            - **Performance deviations** from 8760 model predictions using R² and RMSE metrics
+            - **Financial impact quantification** of underperformance in monthly revenue terms
+            - **Root cause identification** for operational issues affecting power generation
+            - **Portfolio-level insights** including comparative analysis and trend identification
             
-            Try asking: **"Give me the 3 most underperforming sites"** or select a question from the sidebar.
+            Ask me about specific sites, performance thresholds, or portfolio-wide metrics. For example: "Which sites are underperforming?" or "Show me sites with RMSE above 2.0 MW."
             """)
     else:
         # Display chat history
@@ -457,50 +458,221 @@ with chat_container:
             with st.chat_message(message['role'], avatar="🤖" if message['role'] == "assistant" else "👤"):
                 st.markdown(message['content'])
 
+# No separate visualization needed - all data is in the conversational response
+
 # Input area with enhanced UI
 st.markdown("---")
 
-# Initialize input state
-if 'ai_input' not in st.session_state:
-    st.session_state.ai_input = ""
+# Use a container for input without causing widget conflicts
+user_input_container = st.container()
 
-# Query input - don't use value parameter when using key that's in session state
-user_input = st.text_area(
-    "Ask a question about your solar assets:",
-    placeholder="E.g., Which sites are underperforming today?",
-    key="ai_input",  # This will automatically sync with session state
-    label_visibility="collapsed",
-    height=100
-)
+with user_input_container:
+    col1, col2 = st.columns([5, 1])
+    
+    with col1:
+        # Check if we should clear the input
+        default_value = "" if st.session_state.get('clear_input', False) else None
+        user_input = st.text_area(
+            "Ask a question about your solar assets:",
+            placeholder="E.g., Which sites are underperforming today?",
+            label_visibility="collapsed",
+            height=100,
+            key="ai_query_input_main",
+            value=default_value
+        )
+    
+    with col2:
+        st.write("")  # Spacer
+        st.write("")  # Spacer
+        send_button = st.button("🚀 Send", type="primary", use_container_width=True)
+        voice_button = st.button("🎙️ Voice", use_container_width=True)
 
-col1, col2, col3 = st.columns([1, 1, 4])
-
-with col1:
-    if st.button("🚀 Send", type="primary", use_container_width=True):
-        # Get the current value from session state
-        current_input = st.session_state.get('ai_input', '')
-        st.write(f"Debug - Input value: '{current_input}'")  # Debug line
+# Handle send button
+if send_button and user_input and user_input.strip():
+    # Immediately add user message to chat
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+    
+    st.session_state.chat_history.append({
+        'role': 'user',
+        'content': user_input
+    })
+    
+    # Process API call
+    try:
+        # Call AI API
+        response = api_client.query_ai_assistant(user_input)
         
-        if current_input and current_input.strip():
-            st.write("Debug - Processing query...")  # Debug line
-            try:
-                # Process the query
-                process_user_query(current_input, api_client)
-            except Exception as e:
-                st.error(f"Error processing query: {e}")
-                import traceback
-                st.write(traceback.format_exc())
-            # Don't clear or rerun yet - let's see what happens
+        # Get the summary or generate response text
+        summary = response.get('summary', '')
+        data = response.get('data', [])
+        
+        # Create conversational response based on query type
+        query_lower = user_input.lower()
+        
+        # If we have a summary from the AI, prioritize using it
+        if summary and not summary.startswith('🎯 TOP'):  # Not the default underperformance summary
+            response_text = summary
+            # Add data details if available
+            if data and isinstance(data, list) and len(data) > 0:
+                response_text += "\n\n**Data Details:**\n"
+                for item in data[:5]:
+                    if isinstance(item, dict):
+                        site_name = item.get('site_name', 'Unknown')
+                        r_squared = item.get('r_squared', 0)
+                        rmse = item.get('rmse', 0)
+                        response_text += f"• {site_name}: R²={r_squared:.3f}, RMSE={rmse:.2f} MW\n"
+        
+        # Check for RMSE threshold queries
+        elif 'rmse' in query_lower and ('above' in query_lower or 'over' in query_lower or 'greater' in query_lower):
+            # Extract threshold if mentioned
+            import re
+            numbers = re.findall(r'\d+(?:\.\d+)?', user_input)
+            threshold = float(numbers[0]) if numbers else 2.0
+            
+            # Filter data for sites above RMSE threshold
+            if data:
+                filtered_sites = [site for site in data if site.get('rmse', 0) > threshold]
+                
+                if filtered_sites:
+                    response_text = f"Based on my analysis, {len(filtered_sites)} sites have RMSE above {threshold} MW:\n\n"
+                    for site in filtered_sites:
+                        site_name = site.get('site_name', 'Unknown')
+                        rmse = site.get('rmse', 0)
+                        r_squared = site.get('r_squared', 0)
+                        revenue = site.get('revenue_impact', 0)
+                        
+                        response_text += f"**{site_name}**\n"
+                        response_text += f"• RMSE: {rmse:.2f} MW (exceeds threshold by {rmse - threshold:.2f} MW)\n"
+                        response_text += f"• R²: {r_squared:.3f}\n"
+                        if revenue > 0:
+                            response_text += f"• Revenue Impact: ${revenue:,.0f}/month\n"
+                        response_text += "\n"
+                    
+                    response_text += f"These sites require immediate attention due to significant deviation from predicted performance."
+                else:
+                    response_text = f"Good news! No sites currently have RMSE above {threshold} MW. All sites are operating within acceptable deviation limits."
+            else:
+                response_text = summary if summary else "Unable to retrieve performance data at this time."
+        
+        # Check for R-squared queries
+        elif 'r' in query_lower and ('squared' in query_lower or 'r2' in query_lower or 'r²' in query_lower):
+            if 'below' in query_lower or 'less' in query_lower or 'under' in query_lower:
+                # Extract threshold
+                numbers = re.findall(r'0?\.\d+|\d+', user_input)
+                threshold = float(numbers[0]) if numbers else 0.8
+                if threshold > 1:
+                    threshold = threshold / 100  # Convert percentage to decimal
+                
+                if data:
+                    filtered_sites = [site for site in data if site.get('r_squared', 1) < threshold]
+                    
+                    if filtered_sites:
+                        response_text = f"Sites with R² below {threshold}:\n\n"
+                        for site in filtered_sites:
+                            site_name = site.get('site_name', 'Unknown')
+                            r_squared = site.get('r_squared', 0)
+                            response_text += f"**{site_name}**: R²={r_squared:.3f}\n"
+                    else:
+                        response_text = f"All sites have R² above {threshold}, indicating good model correlation."
+                else:
+                    response_text = summary if summary else "Unable to retrieve R² data."
+            else:
+                response_text = summary if summary else "Please specify a threshold for R² analysis."
+        
+        # Default to summary for other queries
         else:
-            st.warning("Please enter a question before clicking Send.")
+            response_text = summary if summary else "Based on my analysis:\n\n"
+            if not summary and data:
+                for idx, item in enumerate(data[:3], 1):
+                    if isinstance(item, dict):
+                        site_name = item.get('site_name', f'Site {idx}')
+                        r_squared = item.get('r_squared', 0)
+                        rmse = item.get('rmse', 0)
+                        revenue = item.get('revenue_impact', 0)
+                        response_text += f"**{site_name}**: R²={r_squared:.3f}, RMSE={rmse:.2f} MW"
+                        if revenue > 0:
+                            response_text += f" (${revenue:,.0f}/month)"
+                        response_text += "\n"
+        
+        # Add assistant response to chat
+        st.session_state.chat_history.append({
+            'role': 'assistant',
+            'content': response_text
+        })
+        
+    except Exception as e:
+        st.session_state.chat_history.append({
+            'role': 'assistant',
+            'content': f"Error: {str(e)}"
+        })
+    
+    # Clear input and rerun
+    st.session_state['clear_input'] = True
+    st.rerun()
+elif send_button:
+    st.warning("Please enter a question before clicking Send.")
 
-with col2:
-    if st.button("🎙️ Voice Input", use_container_width=True):
-        st.info("Voice input will be implemented")
+if voice_button:
+    st.info("Voice input will be implemented")
+
+# Reset the clear flag after the page loads
+if st.session_state.get('clear_input', False):
+    st.session_state['clear_input'] = False
 
 # Process query from sidebar if one was selected
 if query_to_process:
-    process_user_query(query_to_process, api_client)
+    # Initialize chat history if needed
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+    
+    # Add user message
+    st.session_state.chat_history.append({
+        'role': 'user',
+        'content': query_to_process
+    })
+    
+    # Process API call
+    try:
+        response = api_client.query_ai_assistant(query_to_process)
+        summary = response.get('summary', '')
+        data = response.get('data', [])
+        
+        # Use same logic as main query processing
+        query_lower = query_to_process.lower()
+        
+        # Prioritize AI summary if available
+        if summary and not summary.startswith('🎯 TOP'):
+            response_text = summary
+        # Check for RMSE queries
+        elif 'rmse' in query_lower and 'above' in query_lower:
+            import re
+            numbers = re.findall(r'\d+(?:\.\d+)?', query_to_process)
+            threshold = float(numbers[0]) if numbers else 2.0
+            
+            if data:
+                filtered_sites = [site for site in data if site.get('rmse', 0) > threshold]
+                if filtered_sites:
+                    response_text = f"{len(filtered_sites)} sites have RMSE above {threshold} MW:\n\n"
+                    for site in filtered_sites:
+                        response_text += f"**{site.get('site_name')}**: RMSE={site.get('rmse'):.2f} MW\n"
+                else:
+                    response_text = f"No sites have RMSE above {threshold} MW."
+            else:
+                response_text = summary if summary else "Unable to retrieve data."
+        else:
+            response_text = summary if summary else "Unable to process query."
+        
+        st.session_state.chat_history.append({
+            'role': 'assistant',
+            'content': response_text
+        })
+    except Exception as e:
+        st.session_state.chat_history.append({
+            'role': 'assistant',
+            'content': f"Error: {str(e)}"
+        })
+    
     st.rerun()
 
 # Help section in expander

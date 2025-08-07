@@ -19,6 +19,7 @@ class AIServiceV2:
     def __init__(self, db=None):
         # Initialize OpenAI client
         api_key = settings.openai_api_key
+        
         if not api_key or api_key == "your_openai_api_key_here":
             # For demo purposes, initialize without client but warn
             self.client = None
@@ -117,9 +118,17 @@ Respond with JSON containing:
             # Parse AI response
             ai_response = response.choices[0].message.content.strip()
             
+            # Remove markdown code blocks if present
+            if ai_response.startswith('```json'):
+                ai_response = ai_response[7:]
+            elif ai_response.startswith('```'):
+                ai_response = ai_response[3:]
+            if ai_response.endswith('```'):
+                ai_response = ai_response[:-3]
+            
             # Try to parse as JSON, fallback to default structure
             try:
-                analysis = json.loads(ai_response)
+                analysis = json.loads(ai_response.strip())
             except json.JSONDecodeError:
                 # Fallback analysis for renewable energy queries
                 query_lower = query.lower()
@@ -309,9 +318,17 @@ Please analyze this data and provide insights to answer the user's question.
             
             ai_response = response.choices[0].message.content.strip()
             
+            # Remove markdown code blocks if present
+            if ai_response.startswith('```json'):
+                ai_response = ai_response[7:]  # Remove ```json
+            elif ai_response.startswith('```'):
+                ai_response = ai_response[3:]  # Remove ```
+            if ai_response.endswith('```'):
+                ai_response = ai_response[:-3]  # Remove trailing ```
+            
             # Try to parse as JSON
             try:
-                parsed_response = json.loads(ai_response)
+                parsed_response = json.loads(ai_response.strip())
                 
                 # Add actual data if chart is requested
                 if parsed_response.get("chart_type") and data_context:
